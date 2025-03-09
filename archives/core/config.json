@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "settings": {
+    "max_file_lines": 500,
+    "default_format": "markdown",
+    "archive_structure": {
+      "projects": [
+        "frontend",
+        "backend",
+        "shared"
+      ],
+      "sections": [
+        "setup",
+        "architecture",
+        "errors",
+        "fixes",
+        "apis",
+        "dependencies",
+        "recommendations"
+      ]
+    },
+    "cursorrules": {
+      "base_repo": "https://github.com/grapeot/devin.cursorrules",
+      "base_branch": "multi-agent",
+      "base_file": ".cursorrules",
+      "custom_rules_dir": "archives/custom_rules"
+    }
+  }
+} 
