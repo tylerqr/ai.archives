@@ -20,7 +20,7 @@
       ]
     },
     "cursorrules": {
-      "base_repo": "https://github.com/grapeot/devin.cursorrules",
+      "base_repo": "grapeot/devin.cursorrules",
       "base_branch": "multi-agent",
       "base_file": ".cursorrules",
       "custom_rules_dir": "archives/custom_rules"
