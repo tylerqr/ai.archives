@@ -1,0 +1,5 @@
+# Base CursorRules
+
+[Base content would be fetched from GitHub]
+
+

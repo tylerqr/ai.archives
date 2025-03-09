@@ -1,0 +1,203 @@
+# Base CursorRules
+
+[Base content would be fetched from GitHub]
+
+
+
+
+# AI Archives - Custom Rules
+
+## project_conventions
+
+# Project Conventions
+
+This rule file defines project-specific conventions that all AI agents should follow when working with our codebase.
+
+## Code Style
+
+- Use 2 spaces for indentation in all files
+- Use single quotes for JavaScript/TypeScript strings
+- Place opening braces on the same line as the statement
+- Add semicolons at the end of statements
+- Maximum line length: 100 characters
+- Use camelCase for variables and functions
+- Use PascalCase for classes and components
+- Use UPPER_SNAKE_CASE for constants
+
+## Git Workflow
+
+- Create feature branches from `develop`
+- Branch naming: `feature/short-description` or `bugfix/issue-reference`
+- Write descriptive commit messages in present tense
+- Use semantic prefixes: `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `chore:`
+- Include issue references in commits when applicable
+- Squash commits before merging to develop
+
+## Directory Structure
+
+### Frontend
+
+```
+frontend/
+├── src/
+│   ├── components/      # Reusable React components
+│   │   ├── common/      # Generic UI components
+│   │   └── features/    # Feature-specific components
+│   ├── hooks/           # Custom React hooks
+│   ├── pages/           # Page components
+│   ├── services/        # API service layer
+│   ├── utils/           # Helper functions
+│   ├── contexts/        # React context providers
+│   ├── types/           # TypeScript types and interfaces
+│   └── styles/          # Global styles and themes
+├── public/              # Static assets
+└── tests/               # Test files
+```
+
+### Backend
+
+```
+backend/
+├── src/
+│   ├── controllers/     # Route handlers
+│   ├── services/        # Business logic
+│   ├── models/          # Data models
+│   ├── repositories/    # Database operations
+│   ├── middlewares/     # Express middlewares
+│   ├── utils/           # Helper functions
+│   ├── config/          # Configuration files
+│   └── types/           # TypeScript types and interfaces
+├── scripts/             # Utility scripts
+└── tests/               # Test files
+```
+
+## Testing Standards
+
+- Write unit tests for all components and functions
+- Maintain at least 80% test coverage
+- Name test files with `.test.ts` or `.test.tsx` extensions
+- Use Jest and React Testing Library for frontend tests
+- Use Jest for backend tests
+- Run tests before pushing code
+
+## Documentation
+
+- Add JSDoc comments to all functions and components
+- Include parameter types and return types
+- Document complex algorithms and business logic
+- Update README files when functionality changes
+- Include examples for API endpoints
+
+## Deployment
+
+- Frontend deploys automatically from `main` branch
+- Backend deploys after successful CI/CD pipeline
+- Staging environment pulls from `develop` branch
+- Production environment pulls from `main` branch
+- Use feature flags for incomplete features 
+
+## ai_archives_integration
+
+# AI Archives System Integration Rules
+
+These rules govern how AI agents should interact with the AI Archives system, search for information, update archives, and handle custom rules.
+
+## Archives Search and Retrieval
+
+- **Proactive Search**: Before attempting to solve complex problems, search the archives for relevant information using the search feature.
+- **User-Triggered Search**: When the user says "search archives" or "check archives" for a topic, immediately use the archives search functionality.
+- **Search Command**: Use `python scripts/archives_cli.py search "query"` to search archives.
+- **Cross-Project Knowledge**: When working on tasks that may involve both frontend and backend, search both project archives.
+- **Context Building**: After finding relevant information, incorporate insights from archives into your response.
+
+```bash
+# Example search command
+python scripts/archives_cli.py search "authentication error"
+```
+
+## Archives Update Protocol
+
+- **User Permission Required**: NEVER add to archives automatically. Only add content when explicitly requested by the user.
+- **Update Triggers**: When the user says phrases like "add this to archives", "update archives with", or "document this in archives", then update archives.
+- **Proper Categorization**: Categorize new information by:
+  - Project (frontend, backend, shared)
+  - Section (setup, architecture, errors, fixes, apis, etc.)
+  - Add appropriate titles and formatting
+
+```bash
+# Example archive update command
+python scripts/archives_cli.py add --project=frontend --section=errors --title="JWT Authentication Error" --content="Detailed description of the issue..."
+```
+
+## Custom Rules Management
+
+- **Rule Update Triggers**: When the user says "update the rules to...", "add rule for...", or similar phrases, update the CUSTOM RULES, not the .cursorrules file.
+- **NEVER Edit .cursorrules Directly**: The .cursorrules file is generated by combining base rules with custom rules. Never edit it directly.
+- **Custom Rules Location**: All custom rules should be added to files in `archives/custom_rules/`.
+- **Rule Updates Command**: Use the archives CLI to add or update rules.
+
+```bash
+# How to update custom rules
+python scripts/archives_cli.py rule add --name=rule_name --content="Rule content..."
+```
+
+## Multi-Agent Scratchpad Redirection
+
+- **Current Task Documentation**: Instead of using the scratchpad in .cursorrules, use a dedicated file in the archives:
+  - Location: `archives/projects/shared/current_task.md`
+  - Update this file to track progress, status, and next steps
+
+- **Lessons and Insights**: Instead of adding to the Lessons section in .cursorrules, store valuable insights in:
+  - Location: `archives/projects/shared/lessons.md`
+  - Categorize lessons appropriately (e.g., frontend, backend, deployment)
+
+```bash
+# Update current task status
+python scripts/archives_cli.py add --project=shared --section=current_task --title="Task Progress" --content="Current status and next steps..."
+
+# Add new lesson learned
+python scripts/archives_cli.py add --project=shared --section=lessons --title="Important Insight" --content="Lesson details..."
+```
+
+## Archive File Structure Conventions
+
+- **Markdown Format**: All archive content should be in Markdown format.
+- **Clear Headings**: Use proper heading levels (# for titles, ## for sections, etc.).
+- **Code Blocks**: Always use proper code fencing (```language) for code snippets.
+- **Timestamps**: Include timestamps for important events or changes.
+- **Cross-References**: Reference related archive entries when relevant.
+
+## Integration Workflow
+
+1. When beginning work on a task:
+   - Search archives for relevant previous work
+   - Check current_task.md for context
+
+2. During problem-solving:
+   - Reference archives when encountering similar issues
+   - Document key decisions and approaches
+
+3. After completing a task:
+   - When asked, update archives with new knowledge
+   - Add any lessons learned to lessons.md
+
+## Special Commands Reference
+
+| User Says | AI Action |
+|-----------|-----------|
+| "search archives for X" | Search the archives system for X |
+| "update archives with Y" | Add Y to appropriate archive section |
+| "update the rules to Z" | Update custom rules with Z |
+| "get archive status" | List recent archive entries |
+| "regenerate cursorrules" | Run integrate_cursorrules.py |
+
+## Regenerating the Integrated cursorrules File
+
+After any changes to custom rules, the integrated .cursorrules file should be regenerated:
+
+```bash
+python scripts/integrate_cursorrules.py
+```
+
+This combines the base cursorrules file with all custom rules. 
+
