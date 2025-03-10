@@ -113,32 +113,39 @@ def merge_with_custom_rules(base_content, custom_rules):
     """
     Merge the base cursorrules content with custom rules.
     
+    Places custom rules at the top followed by the base content.
+    
     Args:
-        base_content: Content of the base cursorrules file
-        custom_rules: List of custom rule dictionaries
+        base_content: Base cursorrules content
+        custom_rules: List of custom rules
         
     Returns:
         Merged content
     """
-    print(f"Merging with {len(custom_rules)} custom rules...")
+    # Start with an empty combined content
+    combined_content = ""
     
-    if not custom_rules:
-        return base_content
+    # First, add a reference to the archive system
+    combined_content += "# AI Archives System Reference\n\n"
+    combined_content += "When asked to interact with the AI Archives system (search archives, add to archives, update rules):\n"
+    combined_content += "1. Refer to the usage instructions file at `archives/custom_rules/how-to-use-archive-system.md`\n"
+    combined_content += "2. Follow the appropriate protocol for searching, updating, or managing archives\n"
+    combined_content += "3. Use the archives CLI commands as documented in the instructions\n\n"
     
-    # Create the custom rules section
-    custom_rules_content = "\n\n# AI Archives - Custom Rules\n\n"
+    # Then add the custom rules
+    if custom_rules:
+        print(f"Merging with {len(custom_rules)} custom rules...")
+        combined_content += "# AI Archives - Custom Rules\n\n"
+        
+        for rule in custom_rules:
+            combined_content += f"## {rule['name']}\n\n"
+            combined_content += rule['content']
+            combined_content += "\n\n"
     
-    # Add each custom rule
-    for rule in custom_rules:
-        custom_rules_content += f"## {rule['name']}\n\n"
-        # Sanitize the rule content to remove ANSI color codes and error messages
-        sanitized_content = sanitize_content(rule['content'])
-        custom_rules_content += sanitized_content + "\n\n"
+    # Add the base content last
+    combined_content += base_content
     
-    # Combine base content with custom rules (at the end)
-    merged_content = base_content + custom_rules_content
-    
-    return merged_content
+    return combined_content
 
 
 def write_combined_file(content, output_path):
@@ -225,15 +232,18 @@ def main():
     # Get custom rules
     custom_rules = manager.get_custom_rules()
     
-    # Merge with custom rules
+    # Merge with custom rules (placing them at the top)
     merged_content = merge_with_custom_rules(base_content, custom_rules)
     
     # Write combined file
-    combined_path = write_combined_file(merged_content, output_path)
+    print(f"Writing combined cursorrules to {output_path}...")
+    write_combined_file(merged_content, output_path)
     
-    # Copy to target project if specified
+    # Copy to target project if requested
     if args.copy_to:
-        copy_to_project(combined_path, args.copy_to)
+        copy_to_project(output_path, args.copy_to)
+    
+    print(f"Successfully wrote combined cursorrules file ({len(merged_content)} characters)")
     
     return 0
 

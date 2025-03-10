@@ -373,13 +373,14 @@ class ArchivesManager:
         """
         Generate a combined cursorrules file with base rules and custom rules.
         
+        Places custom rules at the top followed by the base content.
+        
         Args:
-            output_path: Optional path for the output file. If None, uses a temporary file.
+            output_path: Optional path for the output file. If None, uses a file in the data repo.
             
         Returns:
             Path to the generated file
         """
-        import tempfile
         import requests
         
         # Get base cursorrules file from GitHub
@@ -402,17 +403,39 @@ class ArchivesManager:
         # Get custom rules
         custom_rules = self.get_custom_rules()
         
-        # Combine base content with custom rules
-        combined_content = base_content
+        # Check if archive system usage instructions file exists
+        usage_file_path = os.path.join(self.repo_root, 'archives', 'custom_rules', 'how-to-use-archive-system.md')
+        has_usage_instructions = os.path.exists(usage_file_path)
         
+        # Initialize combined content
+        combined_content = ""
+        
+        # Add reference to archive system usage instructions
+        combined_content += "# AI Archives System Reference\n\n"
+        combined_content += "When asked to interact with the AI Archives system (search archives, add to archives, update rules):\n"
+        
+        if has_usage_instructions:
+            combined_content += "1. Refer to the usage instructions file at `archives/custom_rules/how-to-use-archive-system.md`\n"
+            combined_content += "2. Follow the appropriate protocol for searching, updating, or managing archives\n"
+            combined_content += "3. Use the archives CLI commands as documented in the instructions\n"
+        else:
+            combined_content += "Please note that the AI Archives system is installed but usage instructions are not available.\n"
+            combined_content += "You can use `python scripts/archives_cli.py` for basic operations.\n"
+        
+        combined_content += "\n"
+        
+        # Add custom rules after the instructions
         if custom_rules:
-            combined_content += "\n\n# AI Archives - Custom Rules\n\n"
+            combined_content += "# AI Archives - Custom Rules\n\n"
             
             # Since all rules are now in a single file, we just add them with their section headers
             for rule in custom_rules:
                 combined_content += f"## {rule['name']}\n\n"
                 combined_content += rule['content']
                 combined_content += "\n\n"
+        
+        # Add the base content last
+        combined_content += base_content
         
         # Write to output file
         if output_path:

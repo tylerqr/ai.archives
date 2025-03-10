@@ -257,28 +257,9 @@ def setup_cross_project_links(projects, data_repo=None):
         
         print(f"Linking {project_name} project at {project_path}")
         
-        # Create symlink to the AI archives if requested
-        if prompt_yes_no(f"Create a symlink to the AI archives in the {project_name} project?"):
-            symlink_path = os.path.join(project_path, "ai.archives")
-            
-            # Remove existing symlink if it exists
-            if os.path.exists(symlink_path):
-                if os.path.islink(symlink_path):
-                    os.unlink(symlink_path)
-                else:
-                    print(f"Warning: {symlink_path} exists but is not a symlink. Skipping.")
-                    continue
-            
-            # Create symlink
-            try:
-                os.symlink(manager.repo_root, symlink_path, target_is_directory=True)
-                print(f"✓ Created symlink at {symlink_path}")
-            except OSError as e:
-                print(f"Error creating symlink: {str(e)}")
-                continue
-        
-        # Create symlink to the data repository if needed and requested
-        if data_repo_path and prompt_yes_no(f"Create a symlink to the data repository in the {project_name} project?"):
+        # Create symlink to the data repository if needed
+        if data_repo_path:
+            print(f"Creating a symlink to the data repository in the {project_name} project.")
             data_repo_name = os.path.basename(data_repo_path)
             symlink_path = os.path.join(project_path, data_repo_name)
             
@@ -297,6 +278,8 @@ def setup_cross_project_links(projects, data_repo=None):
             except OSError as e:
                 print(f"Error creating symlink: {str(e)}")
                 continue
+        else:
+            print("Warning: No data repository path found. Skipping symlink creation.")
         
         # Copy cursorrules file if requested
         if prompt_yes_no(f"Copy the combined .cursorrules file to the {project_name} project?"):

@@ -1,19 +1,96 @@
 # AI Archives System
 
-Give long-lived memories and searchable archives to LLMs using Cursor.
+The AI Archives system is a tool for helping AI agents store and retrieve knowledge across conversations and sessions. It provides a structured way to archive solutions, errors, and insights, making them available to future AI interactions.
+
+## Directory Structure
+
+The AI Archives system consists of two repositories:
+
+1. **Main Repository (ai.archives)**: Contains the core code and integration scripts. This is the implementation of the system.
+2. **Data Repository (ai.archives.reko)**: Contains the actual archives data, custom rules, and other user-specific content.
+
+When setting up the AI Archives system, only the data repository should be linked to your project. The main repository is only needed for running the scripts to manage archives and generate the combined .cursorrules file.
+
+## Installation
+
+To install the AI Archives system, follow these steps:
+
+1. Clone the repositories:
+   ```bash
+   git clone https://github.com/yourusername/ai.archives.git
+   git clone https://github.com/yourusername/ai.archives.reko.git
+   ```
+
+2. Run the setup script:
+   ```bash
+   cd ai.archives
+   python scripts/setup.py
+   ```
+
+3. Follow the prompts to set up the archives and link them to your projects.
+
+## Usage
+
+### Adding Content
+
+To add content to the archives:
+
+```bash
+python scripts/archives_cli.py add --project=frontend --section=errors --title="API Authentication Error" --content="Detailed description of the error and solution..."
+```
+
+### Searching
+
+To search the archives:
+
+```bash
+python scripts/archives_cli.py search "authentication error"
+```
+
+### Custom Rules
+
+Custom rules are stored in a single file in the data repository at `archives/custom_rules/reko-rules.md`. You can add rules using the CLI:
+
+```bash
+python scripts/archives_cli.py rule add --name=rule_name --content="Rule content..."
+```
+
+This will add your rule to the reko-rules.md file under a section with the specified name.
+
+### Generating Combined .cursorrules
+
+After adding custom rules, you need to regenerate the combined .cursorrules file:
+
+```bash
+python scripts/integrate_cursorrules.py
+```
+
+This will fetch the base cursorrules file, add the AI Archives System Reference and your custom rules at the top, and save the combined file to your data repository.
+
+## Structure
+
+The combined .cursorrules file has the following structure:
+
+1. **AI Archives System Reference**: Instructions for interacting with the archives system
+2. **Custom Rules**: Rules defined in your data repository
+3. **Base Content**: The original content from the base cursorrules file
+
+## Directory Structure Recommendations
+
+- Keep the main repository (ai.archives) separate from your projects
+- Link only the data repository (ai.archives.reko) to your projects
+- If you previously had symlinks to both repositories, run the cleanup script:
+  ```bash
+  python scripts/cleanup_directories.py --project=/path/to/your/project
+  ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Overview
 
 The AI Archives system is an extension of the [multi-agent cursorrules system](https://github.com/grapeot/devin.cursorrules/tree/multi-agent). It provides a way for AI agents to maintain knowledge across sessions, learn from past experiences, and effectively work across multiple projects.
-
-## Repository Structure
-
-The AI Archives system consists of two repositories:
-
-1. **Main Repository (this repo)**: Contains the core system code, scripts, and utilities.
-2. **Data Repository**: Stores your project-specific archives, knowledge, and custom rules.
-
-This separation keeps the system code clean and allows you to keep your project knowledge private while still benefiting from system updates.
 
 ## ⚠️ IMPORTANT: Repository Placement
 
@@ -188,15 +265,6 @@ python scripts/archives_cli.py search "query"
 python scripts/archives_cli.py rule list
 python scripts/archives_cli.py rule add --name=my_rule
 ```
-
-## Contributing
-
-Contributions to improve the AI Archives system are welcome. Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
 
 ## License
 
