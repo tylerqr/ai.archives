@@ -14,7 +14,43 @@ import glob
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+import tempfile
+import shutil
 
+# Regular expression to match ANSI color codes
+ANSI_COLOR_PATTERN = re.compile(r'\x1B\[\d+(;\d+)*(;*[mK])')
+# Improved regex for error messages
+ERROR_MESSAGE_PATTERN = re.compile(r'(\[31m|\[1m|\[22m|\[39m|Usage Error[^\n]*)')
+# Regex to fix yarn commands
+YARN_COMMAND_PATTERN = re.compile(r'\$ +yarn +run +\[.*?\] +your-script')
+
+def sanitize_content(content):
+    """
+    Remove ANSI color codes and error messages from the content.
+    
+    Args:
+        content: The content to sanitize
+        
+    Returns:
+        Sanitized content
+    """
+    # Remove ANSI color codes
+    sanitized = ANSI_COLOR_PATTERN.sub('', content)
+    
+    # Remove error messages
+    sanitized = ERROR_MESSAGE_PATTERN.sub('', sanitized)
+    
+    # Fix yarn commands
+    sanitized = YARN_COMMAND_PATTERN.sub('`yarn ios`', sanitized)
+    sanitized = sanitized.replace('`yarn ios` ... to build and run on Android simulator or device', '`yarn android` to build and run on Android simulator or device')
+    
+    # Fix common issues with code command examples
+    sanitized = sanitized.replace("<scriptName> ...", "your-script ...")
+    
+    # Fix multiple consecutive newlines that might appear after removing content
+    sanitized = re.sub(r'\n{3,}', '\n\n', sanitized)
+    
+    return sanitized
 
 class ArchivesManager:
     """
@@ -253,41 +289,83 @@ class ArchivesManager:
         os.makedirs(self.data_archives_dir, exist_ok=True)
         os.makedirs(self.custom_rules_dir, exist_ok=True)
         
-        # Create or update the rule file
-        rule_file = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
+        # Sanitize the rule content to remove ANSI color codes and error messages
+        sanitized_content = sanitize_content(rule_content)
         
-        with open(rule_file, 'w') as f:
-            f.write(rule_content)
+        # The single rules file
+        rules_file = os.path.join(self.custom_rules_dir, "reko-rules.md")
         
-        return rule_file
+        # Check if the file exists and read its content
+        existing_content = ""
+        if os.path.exists(rules_file):
+            with open(rules_file, 'r') as f:
+                existing_content = f.read()
+        
+        # Check if the rule already exists in the file
+        rule_section_pattern = re.compile(f"## {re.escape(rule_name)}(.*?)(?:## |$)", re.DOTALL)
+        match = rule_section_pattern.search(existing_content)
+        
+        if match:
+            # Update existing rule
+            new_content = rule_section_pattern.sub(f"## {rule_name}\n\n{sanitized_content}\n\n", existing_content)
+        else:
+            # Add new rule
+            if existing_content and not existing_content.endswith("\n\n"):
+                existing_content += "\n\n"
+            new_content = existing_content + f"## {rule_name}\n\n{sanitized_content}\n\n"
+        
+        # Write the updated content back to the file
+        with open(rules_file, 'w') as f:
+            f.write(new_content)
+        
+        return rules_file
     
     def get_custom_rules(self) -> List[Dict[str, str]]:
         """
-        Get all custom rules.
+        Get all custom rules from the single rules file.
         
         Returns:
             List of dictionaries with rule name and content
         """
-        if not os.path.exists(self.custom_rules_dir):
+        rules_file = os.path.join(self.custom_rules_dir, "reko-rules.md")
+        
+        if not os.path.exists(rules_file):
             return []
         
         rules = []
-        rule_files = glob.glob(os.path.join(self.custom_rules_dir, "*.md"))
         
-        for rule_file in rule_files:
-            rule_name = os.path.splitext(os.path.basename(rule_file))[0]
+        try:
+            with open(rules_file, 'r') as f:
+                content = f.read()
             
-            try:
-                with open(rule_file, 'r') as f:
-                    rule_content = f.read()
+            # Split the content by section headers (## Rule Name)
+            rule_sections = re.split(r'(?=## )', content)
+            
+            for section in rule_sections:
+                if not section.strip():
+                    continue
                 
-                rules.append({
-                    "name": rule_name,
-                    "content": rule_content,
-                    "file": rule_file
-                })
-            except Exception as e:
-                print(f"Error reading rule file {rule_file}: {str(e)}")
+                # Get the rule name and content
+                match = re.match(r'## (.*?)\n(.*)', section, re.DOTALL)
+                if match:
+                    rule_name = match.group(1).strip()
+                    rule_content = match.group(2).strip()
+                    
+                    rules.append({
+                        "name": rule_name,
+                        "content": rule_content,
+                        "file": rules_file
+                    })
+                else:
+                    # Handle content without a proper header
+                    rules.append({
+                        "name": "general",
+                        "content": section.strip(),
+                        "file": rules_file
+                    })
+            
+        except Exception as e:
+            print(f"Error reading rules file {rules_file}: {str(e)}")
         
         return rules
     
@@ -330,6 +408,7 @@ class ArchivesManager:
         if custom_rules:
             combined_content += "\n\n# AI Archives - Custom Rules\n\n"
             
+            # Since all rules are now in a single file, we just add them with their section headers
             for rule in custom_rules:
                 combined_content += f"## {rule['name']}\n\n"
                 combined_content += rule['content']
