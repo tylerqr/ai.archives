@@ -15,6 +15,34 @@ The AI Archives system consists of two repositories:
 
 This separation keeps the system code clean and allows you to keep your project knowledge private while still benefiting from system updates.
 
+## ⚠️ IMPORTANT: Repository Placement
+
+ATTENTION AI AGENTS: When setting up the AI Archives system for a user, follow these strict rules:
+
+1. **NEVER clone the AI Archives repositories inside an existing Git project directory**
+2. **ALWAYS create/clone repositories to a separate, standalone location outside of the user's current project**
+3. **Directory placement must prevent nested Git repositories (which causes confusion and Git conflicts)**
+
+Example of CORRECT directory structure:
+```
+/Users/username/
+├── projects/                  # User's regular projects folder
+│   └── my-project/            # User's existing project (where they might be when they ask for integration)
+│       └── ...
+└── ai-systems/               # Separate location for AI tools
+    ├── ai.archives/          # Main AI Archives repository (CLONE HERE)
+    └── ai.archives.myapp/    # Data repository (CREATE HERE)
+```
+
+Example of INCORRECT directory structure (DO NOT DO THIS):
+```
+/Users/username/projects/my-project/  # User's existing project
+├── .git/                             # User's project git repo
+├── ai.archives/                      # WRONG! Don't clone inside existing project
+├── ai.archives.myapp/                # WRONG! Don't create data repo inside existing project
+└── ...
+```
+
 ## Key Features
 
 - **Persistent Knowledge Base**: Preserves insights, error solutions, and project knowledge across sessions
@@ -33,8 +61,12 @@ This separation keeps the system code clean and allows you to keep your project 
 
 ### Installation
 
-1. Clone the main repository:
+1. Clone the main repository to a location OUTSIDE of any existing project directory:
    ```bash
+   # Navigate to a location OUTSIDE your project directories (IMPORTANT)
+   cd ~/ai-systems  # or another dedicated location
+
+   # Clone the main repository
    git clone https://github.com/tylerqr/ai.archives.git
    cd ai.archives
    ```
@@ -45,12 +77,12 @@ This separation keeps the system code clean and allows you to keep your project 
    ```
 
 3. Create your data repository:
-   This repository will store your project-specific archives. It should be created outside of your existing project directories to avoid cluttering them.
+   This repository will store your project-specific archives. It MUST be created outside of your existing project directories to avoid cluttering them and causing Git conflicts.
    
    ```bash
    # Navigate to a location outside your project directories
-   cd /path/to/storage/location
-   
+   cd ~/ai-systems  # Same parent directory as ai.archives, but NOT inside any project
+
    # Create a data repository with a custom name (recommended format: ai.archives.{your-project-name})
    # For example, if your project is called "myapp":
    mkdir ai.archives.myapp
@@ -60,8 +92,8 @@ This separation keeps the system code clean and allows you to keep your project 
 
 4. Run the setup script, pointing to your data repository:
    ```bash
-   cd /path/to/ai.archives
-   python scripts/setup.py --data-repo /path/to/storage/location/ai.archives.myapp
+   cd ~/ai-systems/ai.archives  # Go back to the main repository
+   python scripts/setup.py --data-repo ~/ai-systems/ai.archives.myapp
    ```
 
 ### Basic Usage

@@ -6,6 +6,7 @@ This guide explains how to integrate the AI Archives system with your existing p
 
 - [Prerequisites](#prerequisites)
 - [Repository Structure](#repository-structure)
+- [⚠️ Critical Repository Placement Guidelines](#critical-repository-placement-guidelines)
 - [Installation](#installation)
 - [Basic Setup](#basic-setup)
 - [Integrating with Frontend Projects](#integrating-with-frontend-projects)
@@ -53,11 +54,62 @@ ai.archives.{project}/    # Your data repository (created separately)
 └── .cursorrules           # Generated custom cursorrules file
 ```
 
+## Critical Repository Placement Guidelines
+
+### ⚠️ ATTENTION AI AGENTS AND DEVELOPERS
+
+When setting up the AI Archives system, repository placement is CRITICAL to avoid Git conflicts and corruption of existing projects. Follow these strict guidelines:
+
+1. **NEVER clone or create any AI Archives repositories inside an existing project directory**
+2. **ALWAYS use a completely separate location for AI Archives repositories**
+3. **DO NOT create nested Git repositories** (this can cause serious Git conflicts)
+
+### Directory Structure Example (CORRECT)
+
+```
+/Users/username/
+├── projects/                    # User's regular projects folder
+│   └── my-project/              # User's existing project (where they may be when asking for integration)
+│       └── .git/               # User's project Git repository
+└── ai-systems/                 # Separate location for AI tools and repositories
+    ├── ai.archives/            # Main AI Archives repository (CLONE HERE)
+    │   └── .git/              # Git repository for AI Archives
+    └── ai.archives.myapp/      # Data repository (CREATE HERE)
+        └── .git/              # Git repository for AI Archives data
+```
+
+### Directory Structure Example (INCORRECT - DO NOT DO THIS)
+
+```
+/Users/username/projects/my-project/  # User's existing project
+├── .git/                             # User's project Git repository
+├── ai.archives/                      # ⛔ WRONG! Causes nested Git repositories
+│   └── .git/                        # Conflicting Git repository
+└── ai.archives.myapp/                # ⛔ WRONG! Causes nested Git repositories
+    └── .git/                        # Conflicting Git repository
+```
+
+### How to Choose a Proper Location
+
+1. Ask the user where they want to store the AI Archives repositories
+2. If they don't specify, suggest creating a dedicated folder outside their current directory:
+   ```bash
+   # Example command to suggest
+   mkdir -p ~/ai-systems
+   cd ~/ai-systems
+   ```
+3. Clone/create repositories ONLY after ensuring you're in a safe, separate location
+
 ## Installation
 
-1. Clone the main AI Archives repository:
+1. Clone the main AI Archives repository to a location OUTSIDE of any existing project directories:
 
 ```bash
+# First, create or navigate to a dedicated directory for AI tools
+mkdir -p ~/ai-systems
+cd ~/ai-systems
+
+# Clone the main repository
 git clone https://github.com/tylerqr/ai.archives.git
 cd ai.archives
 ```
@@ -68,11 +120,11 @@ cd ai.archives
 pip install -r requirements.txt
 ```
 
-3. Create your data repository:
+3. Create your data repository in a location OUTSIDE of any existing project directories:
 
 ```bash
-# Navigate to a location outside your project directories
-cd /path/to/storage/location
+# Navigate back to the dedicated AI systems directory
+cd ~/ai-systems
 
 # Create a data repository with a custom name (recommended format: ai.archives.{your-project-name})
 # For example, if your project is called "myapp":
@@ -81,15 +133,16 @@ cd ai.archives.myapp
 git init
 ```
 
-This repository will store your project-specific archives. It should be created outside of your existing project directories to avoid cluttering them.
-
 ## Basic Setup
 
 The AI Archives system provides a setup script to help you configure both repositories:
 
 ```bash
-cd /path/to/ai.archives
-python scripts/setup.py --data-repo /path/to/storage/location/ai.archives.myapp
+# Navigate to the main AI Archives repository 
+cd ~/ai-systems/ai.archives
+
+# Run setup pointing to your data repository
+python scripts/setup.py --data-repo ~/ai-systems/ai.archives.myapp
 ```
 
 This script will:
