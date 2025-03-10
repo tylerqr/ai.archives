@@ -29,6 +29,35 @@ python scripts/archives_cli.py search "authentication error"
 python scripts/archives_cli.py add --project=frontend --section=errors --title="JWT Authentication Error" --content="Detailed description of the issue..."
 ```
 
+## History Logging
+
+- **Mandatory Logging**: ALWAYS record an entry in the history log after each archive interaction.
+- **Log Contents**: Each history log entry MUST include:
+  - A brief summary of what was changed in the archives
+  - An explanation of why a new file was created or why an existing file was appended
+  - A justification for any decisions made during the archive interaction
+  - Citations of the rules and guidelines that governed the interaction
+- **Purpose**: The history log provides transparency into AI decision-making and helps humans understand how the archives are being used and maintained.
+- **Format**: Write history log entries in a clear, structured format with detailed reasoning.
+
+```bash
+# View recent history logs
+python scripts/archives_cli.py history list
+
+# Search through history logs
+python scripts/archives_cli.py history search "query"
+
+# View a specific history log
+python scripts/archives_cli.py history view <log_file>
+
+# Enable/disable history logging
+python scripts/archives_cli.py history toggle --enable
+python scripts/archives_cli.py history toggle --disable
+
+# Clean up old logs
+python scripts/archives_cli.py history cleanup
+```
+
 ## Custom Rules Management
 
 - **Rule Update Triggers**: When the user says "update the rules to...", "add rule for...", or similar phrases, update the CUSTOM RULES, not the .cursorrules file.
@@ -80,6 +109,7 @@ python scripts/archives_cli.py add --project=shared --section=lessons --title="I
 3. After completing a task:
    - When asked, update archives with new knowledge
    - Add any lessons learned to lessons.md
+   - Record detailed reasoning in the history log
 
 ## Special Commands Reference
 
@@ -90,6 +120,7 @@ python scripts/archives_cli.py add --project=shared --section=lessons --title="I
 | "update the rules to Z" | Update custom rules with Z |
 | "get archive status" | List recent archive entries |
 | "regenerate cursorrules" | Run integrate_cursorrules.py |
+| "show archive history" | List recent history logs |
 
 ## Regenerating the Integrated cursorrules File
 

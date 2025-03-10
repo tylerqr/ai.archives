@@ -24,6 +24,15 @@
       "base_branch": "multi-agent",
       "base_file": ".cursorrules",
       "custom_rules_dir": "archives/custom_rules"
+    },
+    "data_repository": {
+      "path": "/Users/tylerruff/ai-systems/ai.archives.reko",
+      "name": "ai.archives.reko"
+    },
+    "history_logging": {
+      "enabled": true,
+      "log_dir": "archives/history_logs",
+      "max_retention_days": 30
     }
   }
-} 
+}

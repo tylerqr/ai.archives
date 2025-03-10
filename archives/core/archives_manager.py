@@ -11,7 +11,7 @@ import os
 import json
 import re
 import glob
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import tempfile
@@ -59,41 +59,44 @@ class ArchivesManager:
     
     def __init__(self, repo_root: str = None, data_repo_root: str = None):
         """
-        Initialize the ArchivesManager with the repository root path.
+        Initialize the archives manager.
         
         Args:
-            repo_root: Path to the main repository root. If None, tries to determine automatically.
-            data_repo_root: Path to the data repository root. If None, tries to determine from config.
+            repo_root: Path to the repository root (if None, will attempt to find it)
+            data_repo_root: Path to the data repository root (if None, will use the one from config)
         """
-        # Find repo root if not provided
-        if repo_root is None:
-            self.repo_root = self._find_repo_root()
-        else:
-            self.repo_root = repo_root
-            
+        # Find the repository root if not provided
+        self.repo_root = repo_root or self._find_repo_root()
+        
         # Load configuration
-        self.config_path = os.path.join(self.repo_root, 'archives', 'core', 'config.json')
         self.config = self._load_config()
         
-        # Set up data repository path
-        if data_repo_root is not None:
+        # Set up paths
+        self.archives_dir = os.path.join(self.repo_root, "archives")
+        self.core_dir = os.path.join(self.archives_dir, "core")
+        self.projects_dir = os.path.join(self.archives_dir, "projects")
+        self.custom_rules_dir = os.path.join(self.archives_dir, "custom_rules")
+        
+        # Set up data repository
+        data_repo_settings = self.config.get('settings', {}).get('data_repository', {})
+        if data_repo_root:
             self.data_repo_root = data_repo_root
-        elif 'data_repository' in self.config.get('settings', {}) and 'path' in self.config['settings']['data_repository']:
-            self.data_repo_root = self.config['settings']['data_repository']['path']
+        elif data_repo_settings and data_repo_settings.get('path'):
+            self.data_repo_root = data_repo_settings.get('path')
         else:
-            # If no data repo specified, use the main repo as data repo for backward compatibility
             self.data_repo_root = self.repo_root
         
-        # Setup paths for main repository
-        self.archives_dir = os.path.join(self.repo_root, 'archives')
-        self.core_dir = os.path.join(self.archives_dir, 'core')
-        self.api_dir = os.path.join(self.archives_dir, 'api')
-        self.examples_dir = os.path.join(self.archives_dir, 'examples')
+        # Set up data repository paths
+        self.data_archives_dir = os.path.join(self.data_repo_root, "archives")
+        self.data_projects_dir = os.path.join(self.data_archives_dir, "projects")
+        self.data_custom_rules_dir = os.path.join(self.data_archives_dir, "custom_rules")
         
-        # Setup paths for data repository
-        self.data_archives_dir = os.path.join(self.data_repo_root, 'archives')
-        self.projects_dir = os.path.join(self.data_archives_dir, 'projects')
-        self.custom_rules_dir = os.path.join(self.data_archives_dir, 'custom_rules')
+        # Create history log directory
+        self.history_log_dir = os.path.join(self.data_archives_dir, "history_logs")
+        os.makedirs(self.history_log_dir, exist_ok=True)
+        
+        # Check if history logging is enabled (default to True)
+        self.history_logging_enabled = self.config.get('settings', {}).get('history_logging', {}).get('enabled', True)
         
     def _find_repo_root(self) -> str:
         """
@@ -191,42 +194,113 @@ class ArchivesManager:
             new_file = os.path.join(section_dir, f"{section}_001.md")
             return new_file, True
 
-    def add_to_archives(self, project: str, section: str, content: str, title: Optional[str] = None) -> str:
+    def log_history(self, action: str, details: Dict[str, Any]) -> str:
         """
-        Add content to the archives.
+        Log an interaction with the archives to the history log.
         
         Args:
-            project: The project name (e.g., 'frontend', 'backend')
-            section: The section name (e.g., 'setup', 'errors')
-            content: The content to add
-            title: Optional title for the entry
+            action: The type of action performed (e.g., "add", "search", "update_rules")
+            details: Dictionary containing details about the action
             
         Returns:
-            Path to the file the content was added to
+            Path to the log file
         """
-        # Ensure the data archives directory exists
-        os.makedirs(self.data_archives_dir, exist_ok=True)
+        # Skip logging if disabled
+        if not self.history_logging_enabled:
+            return None
+            
+        # Create log entry
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        log_id = f"{timestamp}_{action}"
         
-        # Get the appropriate file to add to
-        file_path, is_new_file = self.get_appropriate_archive_file(project, section)
+        # Prepare log content
+        log_content = f"# Archive Interaction Log - {action}\n\n"
+        log_content += f"**Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        log_content += f"**Action**: {action}\n\n"
         
-        # Format the content with timestamp and title
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Add action-specific details
+        log_content += "## Details\n\n"
+        for key, value in details.items():
+            log_content += f"**{key}**: {value}\n"
+            
+        # Add decision explanation if provided
+        if details.get('decision_explanation'):
+            log_content += f"\n## Decision Explanation\n\n{details.get('decision_explanation')}\n"
+            
+        # Add rules cited if provided
+        if details.get('rules_cited'):
+            log_content += f"\n## Rules Followed\n\n{details.get('rules_cited')}\n"
+            
+        # Create log file
+        log_file = os.path.join(self.history_log_dir, f"{log_id}.md")
         
+        with open(log_file, 'w') as f:
+            f.write(log_content)
+            
+        return log_file
+        
+    def add_to_archives(self, project: str, section: str, content: str, title: Optional[str] = None) -> str:
+        """
+        Add content to archives.
+        
+        Args:
+            project: Project name
+            section: Section name
+            content: Content to add
+            title: Optional title for the content
+            
+        Returns:
+            Path to the file where content was added
+        """
+        # Determine appropriate archive file
+        archive_file, is_new_file = self.get_appropriate_archive_file(project, section)
+        
+        # Sanitize the content to remove ANSI color codes and error messages
+        sanitized_content = sanitize_content(content)
+        
+        # If title is not provided, use a timestamp
         if not title:
-            title = f"{section.capitalize()} update"
+            title = f"Archive Entry {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
-        formatted_content = f"# {title}\n\n"
-        formatted_content += f"*Date: {timestamp}*\n\n"
-        formatted_content += content
-        formatted_content += "\n\n---\n\n"
+        # Format the content for the archive
+        if is_new_file:
+            formatted_content = f"# {title}\n\n{sanitized_content}"
+        else:
+            formatted_content = f"\n\n## {title}\n\n{sanitized_content}"
         
-        # Add to the file
-        mode = 'w' if is_new_file else 'a'
-        with open(file_path, mode) as f:
+        # Write to the archive file
+        os.makedirs(os.path.dirname(archive_file), exist_ok=True)
+        
+        with open(archive_file, 'a') as f:
             f.write(formatted_content)
         
-        return file_path
+        # Prepare decision explanation for the history log
+        decision_explanation = ""
+        if is_new_file:
+            decision_explanation = f"Created a new file because no appropriate file existed for {project}/{section} or all existing files were at capacity."
+        else:
+            decision_explanation = f"Appended to existing file because it had capacity and matched the project/section criteria."
+        
+        # Prepare rules cited for the history log
+        rules_cited = "- Archives are organized by project and section\n"
+        rules_cited += f"- Max file lines: {self.config.get('settings', {}).get('max_file_lines', 500)}\n"
+        if is_new_file:
+            rules_cited += "- New files are created when no appropriate file exists or all files are at capacity"
+        else:
+            rules_cited += "- Existing files are appended to when they have capacity"
+        
+        # Log the action
+        self.log_history("add_to_archives", {
+            "project": project,
+            "section": section,
+            "title": title,
+            "file": archive_file,
+            "is_new_file": is_new_file,
+            "decision_explanation": decision_explanation,
+            "rules_cited": rules_cited
+        })
+        
+        return archive_file
     
     def search_archives(self, query: str, project: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -317,6 +391,27 @@ class ArchivesManager:
         # Write the updated content back to the file
         with open(rules_file, 'w') as f:
             f.write(new_content)
+        
+        # Prepare decision explanation for the history log
+        decision_explanation = ""
+        if match:
+            decision_explanation = f"Updated existing rule '{rule_name}' in the rules file."
+        else:
+            decision_explanation = f"Added new rule '{rule_name}' to the rules file."
+        
+        # Prepare rules cited for the history log
+        rules_cited = "- Custom rules are stored in a single file for easier management\n"
+        rules_cited += "- Rules are organized by sections with ## headers\n"
+        rules_cited += "- Existing rules are updated in-place, new rules are appended"
+        
+        # Log the action
+        self.log_history("update_custom_rules", {
+            "rule_name": rule_name,
+            "file": rules_file,
+            "is_update": bool(match),
+            "decision_explanation": decision_explanation,
+            "rules_cited": rules_cited
+        })
         
         return rules_file
     
@@ -448,6 +543,195 @@ class ArchivesManager:
             f.write(combined_content)
         
         return output_file
+
+    def get_history_logs(self, action_type: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get history logs from the archives.
+        
+        Args:
+            action_type: Optional filter by action type (e.g. "add_to_archives", "update_custom_rules")
+            limit: Maximum number of logs to return (default: 10)
+            
+        Returns:
+            List of dictionaries with log details
+        """
+        if not os.path.exists(self.history_log_dir):
+            return []
+        
+        # Get all log files
+        log_files = glob.glob(os.path.join(self.history_log_dir, "*.md"))
+        
+        # Sort by filename (which includes timestamp) in reverse order to get newest first
+        log_files.sort(reverse=True)
+        
+        logs = []
+        count = 0
+        
+        for log_file in log_files:
+            # Extract action type from filename
+            filename = os.path.basename(log_file)
+            file_action_type = filename.split('_', 2)[-1].split('.')[0]
+            
+            # Skip if doesn't match requested action_type
+            if action_type and file_action_type != action_type:
+                continue
+                
+            # Read log content
+            try:
+                with open(log_file, 'r') as f:
+                    content = f.read()
+                    
+                # Extract basic info from the content
+                timestamp_match = re.search(r'\*\*Timestamp\*\*: (.*)', content)
+                action_match = re.search(r'\*\*Action\*\*: (.*)', content)
+                
+                timestamp = timestamp_match.group(1) if timestamp_match else "Unknown"
+                action = action_match.group(1) if action_match else "Unknown"
+                
+                logs.append({
+                    "file": log_file,
+                    "timestamp": timestamp,
+                    "action": action,
+                    "content": content
+                })
+                
+                count += 1
+                if count >= limit:
+                    break
+                    
+            except Exception as e:
+                print(f"Error reading log file {log_file}: {str(e)}")
+        
+        return logs
+
+    def search_history_logs(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Search through history logs for a specific query.
+        
+        Args:
+            query: The search query
+            limit: Maximum number of logs to return (default: 10)
+            
+        Returns:
+            List of dictionaries with log details
+        """
+        if not os.path.exists(self.history_log_dir):
+            return []
+        
+        # Get all log files
+        log_files = glob.glob(os.path.join(self.history_log_dir, "*.md"))
+        
+        # Sort by filename (which includes timestamp) in reverse order to get newest first
+        log_files.sort(reverse=True)
+        
+        logs = []
+        count = 0
+        
+        for log_file in log_files:
+            # Read log content
+            try:
+                with open(log_file, 'r') as f:
+                    content = f.read()
+                
+                # Skip if query not in content
+                if query.lower() not in content.lower():
+                    continue
+                    
+                # Extract basic info from the content
+                timestamp_match = re.search(r'\*\*Timestamp\*\*: (.*)', content)
+                action_match = re.search(r'\*\*Action\*\*: (.*)', content)
+                
+                timestamp = timestamp_match.group(1) if timestamp_match else "Unknown"
+                action = action_match.group(1) if action_match else "Unknown"
+                
+                # Find the matching snippet
+                lines = content.split('\n')
+                snippet = ""
+                for i, line in enumerate(lines):
+                    if query.lower() in line.lower():
+                        start = max(0, i - 2)
+                        end = min(len(lines), i + 3)
+                        snippet = '\n'.join(lines[start:end])
+                        break
+                
+                logs.append({
+                    "file": log_file,
+                    "timestamp": timestamp,
+                    "action": action,
+                    "content": content,
+                    "snippet": snippet
+                })
+                
+                count += 1
+                if count >= limit:
+                    break
+                    
+            except Exception as e:
+                print(f"Error reading log file {log_file}: {str(e)}")
+        
+        return logs
+
+    def cleanup_history_logs(self, days: Optional[int] = None, force: bool = False) -> int:
+        """
+        Remove history logs that are older than the retention period.
+        
+        Args:
+            days: Override the retention period from config (in days)
+            force: Skip confirmation prompt
+            
+        Returns:
+            Number of logs removed
+        """
+        if not os.path.exists(self.history_log_dir):
+            return 0
+        
+        # Get retention policy from config
+        max_retention_days = days or self.config.get('settings', {}).get('history_logging', {}).get('max_retention_days', 30)
+        
+        # Calculate cutoff date
+        cutoff_date = datetime.now() - timedelta(days=max_retention_days)
+        
+        # Get all log files
+        log_files = glob.glob(os.path.join(self.history_log_dir, "*.md"))
+        
+        # Skip README.md
+        log_files = [f for f in log_files if os.path.basename(f) != "README.md"]
+        
+        # Find files to remove
+        files_to_remove = []
+        for log_file in log_files:
+            try:
+                # Extract date from filename
+                filename = os.path.basename(log_file)
+                date_str = filename.split('_', 2)[0]
+                time_str = filename.split('_', 2)[1]
+                timestamp_str = f"{date_str}_{time_str}"
+                timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d_%H-%M-%S')
+                
+                # Check if file is older than retention period
+                if timestamp < cutoff_date:
+                    files_to_remove.append(log_file)
+            except Exception as e:
+                print(f"Error processing log file {log_file}: {str(e)}")
+        
+        # Confirm cleanup
+        if not force and files_to_remove:
+            print(f"Found {len(files_to_remove)} logs older than {max_retention_days} days. Proceed with cleanup? (y/n)")
+            response = input()
+            if response.lower() not in ['y', 'yes']:
+                print("Cleanup canceled.")
+                return 0
+        
+        # Remove files
+        removed_count = 0
+        for log_file in files_to_remove:
+            try:
+                os.remove(log_file)
+                removed_count += 1
+            except Exception as e:
+                print(f"Error removing log file {log_file}: {str(e)}")
+        
+        return removed_count
 
 
 def get_archives_manager(repo_root: str = None, data_repo_root: str = None) -> ArchivesManager:
