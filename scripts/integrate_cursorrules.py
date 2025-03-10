@@ -64,18 +64,16 @@ def merge_with_custom_rules(base_content, custom_rules):
     """
     print(f"Merging with {len(custom_rules)} custom rules...")
     
-    # Add a section for custom rules if it doesn't exist
-    if "# AI Archives - Custom Rules" not in base_content:
-        merged_content = base_content + "\n\n# AI Archives - Custom Rules\n\n"
-    else:
-        # Split at the custom rules section to preserve the base content
-        parts = base_content.split("# AI Archives - Custom Rules")
-        merged_content = parts[0] + "# AI Archives - Custom Rules\n\n"
+    # Create the custom rules section
+    custom_rules_content = "# AI Archives - Custom Rules\n\n"
     
     # Add each custom rule
     for rule in custom_rules:
-        merged_content += f"## {rule['name']}\n\n"
-        merged_content += rule['content'] + "\n\n"
+        custom_rules_content += f"## {rule['name']}\n\n"
+        custom_rules_content += rule['content'] + "\n\n"
+    
+    # Combine custom rules (at the top) with base content
+    merged_content = custom_rules_content + "\n" + base_content
     
     return merged_content
 
