@@ -43,12 +43,67 @@ def format_results(results):
     return output
 
 
+def format_quick_search_markdown(results, query):
+    """Format search results in markdown format optimized for AI agents"""
+    if not results:
+        return f"No archives found for query: '{query}'. The information you're looking for is not in the archives."
+    
+    output = f"# Archives Search Results for '{query}'\n\n"
+    output += f"Found {len(results)} relevant entries in the archives:\n\n"
+    
+    for i, result in enumerate(results, 1):
+        project = result['project']
+        title = result['title']
+        file = os.path.basename(result['file'])
+        snippet = result['snippet'].strip()
+        file_path = result['file']
+        
+        output += f"## {i}. {title}\n\n"
+        output += f"**Project:** {project}  \n"
+        output += f"**Location:** {file_path}  \n"
+        
+        # Add match information if it's a tokenized search result
+        if 'score' in result:
+            output += f"**Match Quality:** {result['score']} token matches  \n"
+        
+        output += f"\n### Content Preview:\n\n"
+        output += f"{snippet}\n\n"
+        output += "----\n\n"
+    
+    return output
+
+
+def format_quick_search_text(results, query):
+    """Format search results in plain text format optimized for AI agents"""
+    if not results:
+        return f"No archives found for query: '{query}'. The information you're looking for is not in the archives."
+    
+    output = f"ARCHIVES SEARCH RESULTS FOR: '{query}'\n"
+    output += "=" * 80 + "\n\n"
+    output += f"Found {len(results)} relevant entries in the archives:\n\n"
+    
+    for i, result in enumerate(results, 1):
+        project = result['project']
+        title = result['title']
+        file = os.path.basename(result['file'])
+        snippet = result['snippet'].strip()
+        file_path = result['file']
+        
+        output += f"RESULT {i}: {title}\n"
+        output += "-" * 80 + "\n"
+        output += f"Project: {project}\n"
+        output += f"Location: {file_path}\n\n"
+        output += f"CONTENT PREVIEW:\n{snippet}\n\n"
+    
+    return output
+
+
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="AI Archives CLI")
     
     # Global options
-    parser.add_argument("--data-repo", help="Path to the data repository")
+    parser.add_argument("--data-path", help="Path to the data directory")
     
     subparsers = parser.add_subparsers(dest="command", help="Commands")
     
@@ -70,7 +125,7 @@ def main():
     quick_search_parser.add_argument("query", help="Search query")
     quick_search_parser.add_argument("--project", "-p", help="Project to search in (defaults to all)")
     quick_search_parser.add_argument("--format", choices=["markdown", "text"], default="markdown", 
-                                   help="Output format (default: markdown)")
+                                    help="Output format (default: markdown)")
     
     # List command
     list_parser = subparsers.add_parser("list", help="List available archives")
@@ -96,8 +151,8 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     
-    # Get archives manager with data repository if specified
-    manager = get_archives_manager(data_repo_root=args.data_repo)
+    # Get archives manager with data path if specified
+    manager = get_archives_manager(data_path=args.data_path)
     
     if args.command == "add":
         # Get content from file or argument
@@ -198,56 +253,6 @@ def main():
         return 1
     
     return 0
-
-
-def format_quick_search_markdown(results, query):
-    """Format search results in markdown format optimized for AI agents"""
-    if not results:
-        return f"No archives found for query: '{query}'. The information you're looking for is not in the archives."
-    
-    output = f"# Archives Search Results for '{query}'\n\n"
-    output += f"Found {len(results)} relevant entries in the archives:\n\n"
-    
-    for i, result in enumerate(results, 1):
-        project = result['project']
-        title = result['title']
-        file = os.path.basename(result['file'])
-        snippet = result['snippet'].strip()
-        file_path = result['file']
-        
-        output += f"## {i}. {title}\n\n"
-        output += f"**Project:** {project}  \n"
-        output += f"**Location:** {file_path}  \n\n"
-        output += f"### Content Preview:\n\n"
-        output += f"{snippet}\n\n"
-        output += "----\n\n"
-    
-    return output
-
-
-def format_quick_search_text(results, query):
-    """Format search results in plain text format optimized for AI agents"""
-    if not results:
-        return f"No archives found for query: '{query}'. The information you're looking for is not in the archives."
-    
-    output = f"ARCHIVES SEARCH RESULTS FOR: '{query}'\n"
-    output += "=" * 80 + "\n\n"
-    output += f"Found {len(results)} relevant entries in the archives:\n\n"
-    
-    for i, result in enumerate(results, 1):
-        project = result['project']
-        title = result['title']
-        file = os.path.basename(result['file'])
-        snippet = result['snippet'].strip()
-        file_path = result['file']
-        
-        output += f"RESULT {i}: {title}\n"
-        output += "-" * 80 + "\n"
-        output += f"Project: {project}\n"
-        output += f"Location: {file_path}\n\n"
-        output += f"CONTENT PREVIEW:\n{snippet}\n\n"
-    
-    return output
 
 
 if __name__ == "__main__":

@@ -6,15 +6,11 @@ These rules govern how AI agents should interact with the AI Archives system, se
 
 - **ALWAYS CHECK ARCHIVES FIRST**: When you see the user mention "archives", "check archives", or "search archives", IMMEDIATELY use the archives search functionality as your first action.
 - **USE THE OPTIMAL SEARCH COMMAND**: For best results, use: `python scripts/archives_cli.py quick-search "query"` - this provides formatted results optimized for AI agents.
-- **DATA REPO PROXY SCRIPTS**: If in a project linked to the data repo, use: `python path/to/data-repo/scripts/search_archives.py "query"`.
 - **DO NOT WASTE STEPS**: If the user is looking for information that might be in the archives, go directly to the archives search rather than exploring project directories.
 
 ```bash
 # OPTIMAL WAY to search archives (DO THIS FIRST)
 python scripts/archives_cli.py quick-search "your search term"
-
-# OR if you're in a project with data repo
-python path/to/data-repo/scripts/search_archives.py "your search term"
 ```
 
 ## Archives Search and Retrieval
@@ -26,7 +22,6 @@ python path/to/data-repo/scripts/search_archives.py "your search term"
 ```bash
 # Quick search examples
 python scripts/archives_cli.py quick-search "authentication error"
-python path/to/data-repo/scripts/search_archives.py "authentication error"
 ```
 
 ## Archives Update Protocol
@@ -38,7 +33,6 @@ python path/to/data-repo/scripts/search_archives.py "authentication error"
 ```bash
 # Example archive update command
 python scripts/archives_cli.py add --project=frontend --section=errors --title="Title" --content="Content"
-python path/to/data-repo/scripts/search_archives.py add --project=frontend --section=errors --title="Title" --content="Content"
 ```
 
 ## Custom Rules Management
@@ -49,5 +43,4 @@ python path/to/data-repo/scripts/search_archives.py add --project=frontend --sec
 ```bash
 # Regenerate the cursorrules file
 python scripts/integrate_cursorrules.py
-python path/to/data-repo/scripts/regenerate_cursorrules.py
 ```
