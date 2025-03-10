@@ -77,25 +77,82 @@ def check_prerequisites():
         print("Error: Git is not installed or not in PATH.")
         return False
     
-    # Check if running from the AI archives repository
-    try:
-        manager = get_archives_manager()
-        print(f"AI Archives repository found at: {manager.repo_root}")
-        print("✓ Repository structure OK")
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return False
-    
     return True
 
 
-def setup_ai_archives(target_dir=None):
+def setup_ai_archives(data_repo=None, target_dir=None):
     """Set up the AI archives system"""
     print_header("Setting up AI Archives")
     
     manager = get_archives_manager()
+
+    # Handle data repository setup
+    if data_repo:
+        data_repo_path = os.path.abspath(data_repo)
+        print(f"Setting up AI Archives data repository at {data_repo_path}")
+        
+        # Create data repo directory if it doesn't exist
+        os.makedirs(data_repo_path, exist_ok=True)
+        
+        # Check if it's a git repository, if not initialize it
+        git_dir = os.path.join(data_repo_path, ".git")
+        if not os.path.exists(git_dir):
+            if prompt_yes_no(f"Directory {data_repo_path} is not a Git repository. Initialize it?"):
+                try:
+                    subprocess.run(["git", "init"], cwd=data_repo_path, check=True)
+                    print(f"✓ Initialized Git repository at {data_repo_path}")
+                except subprocess.SubprocessError as e:
+                    print(f"Error initializing Git repository: {str(e)}")
+        
+        # Create archives directory structure in data repo
+        archives_dst = os.path.join(data_repo_path, "archives")
+        if not os.path.exists(archives_dst):
+            os.makedirs(archives_dst, exist_ok=True)
+            
+            # Create project directories
+            projects_dir = os.path.join(archives_dst, "projects")
+            os.makedirs(projects_dir, exist_ok=True)
+            
+            for project_type in ["frontend", "backend", "shared"]:
+                os.makedirs(os.path.join(projects_dir, project_type), exist_ok=True)
+            
+            # Create custom rules directory
+            custom_rules_dir = os.path.join(archives_dst, "custom_rules")
+            os.makedirs(custom_rules_dir, exist_ok=True)
+            
+            print(f"✓ Created archives directory structure in {data_repo_path}")
+        
+        # Update config to point to the data repository
+        config_path = os.path.join(manager.repo_root, 'archives', 'core', 'config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            # Add data repository information to config
+            if 'data_repository' not in config['settings']:
+                config['settings']['data_repository'] = {}
+            
+            config['settings']['data_repository']['path'] = data_repo_path
+            config['settings']['data_repository']['name'] = os.path.basename(data_repo_path)
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            print(f"✓ Updated configuration to use data repository: {data_repo_path}")
+        
+        # Generate a default .cursorrules file in the data repository
+        cursorrules_path = os.path.join(data_repo_path, ".cursorrules")
+        if not os.path.exists(cursorrules_path):
+            try:
+                # Try to generate from source
+                manager.generate_combined_cursorrules(cursorrules_path)
+                print(f"✓ Generated .cursorrules file at {cursorrules_path}")
+            except Exception as e:
+                print(f"Warning: Could not generate .cursorrules file: {str(e)}")
+                print("You will need to generate the .cursorrules file manually later.")
     
-    if target_dir:
+    # Handle target directory setup (for backward compatibility)
+    elif target_dir:
         target_path = os.path.abspath(target_dir)
         print(f"Setting up AI Archives in {target_path}")
         
@@ -157,20 +214,11 @@ def setup_ai_archives(target_dir=None):
             return False
         
         # Check for required subdirectories
-        required_dirs = ["core", "projects", "custom_rules", "api"]
+        required_dirs = ["core", "api", "examples"]
         for dir_name in required_dirs:
             dir_path = os.path.join(archives_dir, dir_name)
             if not os.path.exists(dir_path):
                 print(f"Creating missing directory: {dir_path}")
-                os.makedirs(dir_path, exist_ok=True)
-        
-        # Check for required project directories
-        projects_dir = os.path.join(archives_dir, "projects")
-        project_dirs = ["frontend", "backend", "shared"]
-        for dir_name in project_dirs:
-            dir_path = os.path.join(projects_dir, dir_name)
-            if not os.path.exists(dir_path):
-                print(f"Creating missing project directory: {dir_path}")
                 os.makedirs(dir_path, exist_ok=True)
         
         print("\n✓ AI Archives directory structure verified/created.")
@@ -178,7 +226,7 @@ def setup_ai_archives(target_dir=None):
     return True
 
 
-def setup_cross_project_links(projects):
+def setup_cross_project_links(projects, data_repo=None):
     """Set up cross-project links"""
     print_header("Setting up Cross-Project Links")
     
@@ -187,6 +235,20 @@ def setup_cross_project_links(projects):
         return True
     
     manager = get_archives_manager()
+    
+    # Determine data repo path
+    data_repo_path = None
+    if data_repo:
+        data_repo_path = os.path.abspath(data_repo)
+    else:
+        # Try to get from config
+        config_path = os.path.join(manager.repo_root, 'archives', 'core', 'config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            if 'data_repository' in config.get('settings', {}):
+                data_repo_path = config['settings']['data_repository'].get('path')
     
     for project_name, project_path in projects:
         if not os.path.exists(project_path):
@@ -215,14 +277,40 @@ def setup_cross_project_links(projects):
                 print(f"Error creating symlink: {str(e)}")
                 continue
         
+        # Create symlink to the data repository if needed and requested
+        if data_repo_path and prompt_yes_no(f"Create a symlink to the data repository in the {project_name} project?"):
+            data_repo_name = os.path.basename(data_repo_path)
+            symlink_path = os.path.join(project_path, data_repo_name)
+            
+            # Remove existing symlink if it exists
+            if os.path.exists(symlink_path):
+                if os.path.islink(symlink_path):
+                    os.unlink(symlink_path)
+                else:
+                    print(f"Warning: {symlink_path} exists but is not a symlink. Skipping.")
+                    continue
+            
+            # Create symlink
+            try:
+                os.symlink(data_repo_path, symlink_path, target_is_directory=True)
+                print(f"✓ Created symlink to data repository at {symlink_path}")
+            except OSError as e:
+                print(f"Error creating symlink: {str(e)}")
+                continue
+        
         # Copy cursorrules file if requested
         if prompt_yes_no(f"Copy the combined .cursorrules file to the {project_name} project?"):
             try:
-                # Generate and copy cursorrules file
-                combined_path = manager.generate_combined_cursorrules()
+                # Use cursorrules from data repo if available
+                if data_repo_path and os.path.exists(os.path.join(data_repo_path, ".cursorrules")):
+                    source_path = os.path.join(data_repo_path, ".cursorrules")
+                else:
+                    # Generate and copy cursorrules file
+                    source_path = manager.generate_combined_cursorrules()
+                
                 target_path = os.path.join(project_path, ".cursorrules")
                 
-                with open(combined_path, 'r') as f:
+                with open(source_path, 'r') as f:
                     content = f.read()
                 
                 with open(target_path, 'w') as f:
@@ -235,11 +323,22 @@ def setup_cross_project_links(projects):
     return True
 
 
-def create_sample_content():
+def create_sample_content(data_repo=None):
     """Create sample content in the archives"""
     print_header("Creating Sample Content")
     
     manager = get_archives_manager()
+    
+    # Determine the archives directory
+    archives_dir = None
+    if data_repo:
+        archives_dir = os.path.join(os.path.abspath(data_repo), "archives")
+    else:
+        archives_dir = os.path.join(manager.repo_root, "archives")
+    
+    if not os.path.exists(archives_dir):
+        print(f"Error: Archives directory not found at {archives_dir}")
+        return False
     
     if prompt_yes_no("Would you like to create sample content in the archives?", default="no"):
         # Create sample frontend setup entry
@@ -337,65 +436,65 @@ def display_next_steps():
     """Display next steps for the user"""
     print_header("Next Steps")
     
-    next_steps = textwrap.dedent("""
-    The AI Archives system has been set up successfully. Here are the next steps:
-    
-    1. Update the archives with project-specific knowledge:
-       python scripts/archives_cli.py add --project=frontend --section=setup
-    
-    2. Search the archives for relevant information:
-       python scripts/archives_cli.py search "authentication"
-    
-    3. Add custom rules for your projects:
-       python scripts/archives_cli.py rule add --name=my_rule
-    
-    4. Generate an updated .cursorrules file with your custom rules:
-       python scripts/integrate_cursorrules.py
-    
-    For more information, consult the README.md file in the AI Archives repository.
-    """).strip()
-    
-    print(next_steps)
+    print("""
+Here are the next steps to complete your AI Archives setup:
+
+1. Add project-specific knowledge to your archives:
+   ```
+   python scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --content="Your knowledge here"
+   ```
+
+2. Add custom rules:
+   ```
+   python scripts/archives_cli.py rule add --name=code_style --content="Your rule here"
+   ```
+
+3. Generate a combined cursorrules file:
+   ```
+   python scripts/integrate_cursorrules.py
+   ```
+
+4. Start using the archives in your projects!
+""")
 
 
 def main():
     """Main function"""
-    parser = argparse.ArgumentParser(description="Set up the AI Archives system")
-    parser.add_argument("--target", "-t", help="Target directory for setup (if different from current repo)")
-    parser.add_argument("--link", "-l", action="append", nargs=2, metavar=("NAME", "PATH"),
-                        help="Link a project to the AI archives (can be specified multiple times)")
-    parser.add_argument("--skip-prereq", action="store_true", help="Skip prerequisites check")
-    parser.add_argument("--skip-samples", action="store_true", help="Skip creating sample content")
+    parser = argparse.ArgumentParser(description="AI Archives Setup Script")
+    parser.add_argument("--target", help="Target directory for copying archives")
+    parser.add_argument("--data-repo", help="Path to the data repository (recommended)")
+    parser.add_argument("--link", nargs=2, action="append", metavar=("project_name", "project_path"),
+                        help="Link an external project (can be used multiple times)")
     
     args = parser.parse_args()
     
-    print_header("AI Archives Setup")
-    print("This script will set up the AI Archives system for your projects.")
+    if not check_prerequisites():
+        sys.exit(1)
     
-    # Check prerequisites
-    if not args.skip_prereq and not check_prerequisites():
-        print("\nPrerequisites check failed. Please address the issues and try again.")
-        return 1
+    # Check if both target and data-repo are specified
+    if args.target and args.data_repo:
+        print("Error: You cannot specify both --target and --data-repo. Choose one approach.")
+        sys.exit(1)
     
-    # Set up AI archives
-    if not setup_ai_archives(args.target):
-        print("\nSetup failed. Please address the issues and try again.")
-        return 1
+    projects = args.link or []
     
-    # Set up cross-project links
-    if args.link and not setup_cross_project_links(args.link):
-        print("\nCross-project link setup failed. Continuing with setup.")
+    # Setup the AI archives
+    if not setup_ai_archives(data_repo=args.data_repo, target_dir=args.target):
+        sys.exit(1)
+    
+    # Setup cross-project links
+    if projects:
+        if not setup_cross_project_links(projects, data_repo=args.data_repo):
+            sys.exit(1)
     
     # Create sample content
-    if not args.skip_samples and not create_sample_content():
-        print("\nSample content creation failed. Continuing with setup.")
+    create_sample_content(data_repo=args.data_repo)
     
     # Display next steps
     display_next_steps()
     
-    print("\n✓ AI Archives setup completed successfully!")
-    return 0
-
+    print("\nAI Archives setup completed successfully!")
+    
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    main() 

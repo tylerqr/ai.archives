@@ -46,6 +46,10 @@ def format_results(results):
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="AI Archives CLI")
+    
+    # Global options
+    parser.add_argument("--data-repo", help="Path to the data repository")
+    
     subparsers = parser.add_subparsers(dest="command", help="Commands")
     
     # Add command
@@ -85,8 +89,8 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     
-    # Get archives manager
-    manager = get_archives_manager()
+    # Get archives manager with data repository if specified
+    manager = get_archives_manager(data_repo_root=args.data_repo)
     
     if args.command == "add":
         # Get content from file or argument
@@ -100,78 +104,80 @@ def main():
             return 1
         
         # Add to archives
-        file_path = manager.add_to_archives(
-            project=args.project,
-            section=args.section,
-            content=content,
-            title=args.title
-        )
-        print(f"Content added to {file_path}")
+        result = manager.add_to_archives(args.project, args.section, content, args.title)
+        print(f"Added content to {result}")
     
     elif args.command == "search":
-        results = manager.search_archives(
-            query=args.query,
-            project=args.project
-        )
+        # Search archives
+        results = manager.search_archives(args.query, args.project)
         print(format_results(results))
     
     elif args.command == "list":
-        projects_dir = manager.projects_dir
-        if args.project:
-            project_dir = os.path.join(projects_dir, args.project)
+        # List archives
+        projects = [args.project] if args.project else manager.config["settings"]["archive_structure"]["projects"]
+        
+        for project in projects:
+            project_dir = os.path.join(manager.projects_dir, project)
             if not os.path.exists(project_dir):
-                print(f"Project '{args.project}' not found")
-                return 1
+                continue
             
-            print(f"Archives for project '{args.project}':")
-            for file_path in sorted(Path(project_dir).glob("*.md")):
-                print(f"  {file_path.name}")
-        else:
-            print("Available projects:")
-            for project in sorted(os.listdir(projects_dir)):
-                if os.path.isdir(os.path.join(projects_dir, project)):
-                    print(f"  {project}")
+            sections = [d for d in os.listdir(project_dir) if os.path.isdir(os.path.join(project_dir, d))]
+            
+            print(f"\n{project.upper()} PROJECT:")
+            
+            for section in sections:
+                section_dir = os.path.join(project_dir, section)
+                files = [f for f in os.listdir(section_dir) if f.endswith('.md')]
+                
+                if files:
+                    print(f"  {section}: {len(files)} file(s)")
+                    for file in files:
+                        file_path = os.path.join(section_dir, file)
+                        with open(file_path, 'r') as f:
+                            first_line = f.readline().strip()
+                        
+                        title = first_line if first_line.startswith('# ') else file
+                        print(f"    - {title[2:] if title.startswith('# ') else title}")
     
-    elif args.command == "rule":
-        if args.rule_command == "add":
-            # Get content from file or argument
-            if args.file:
-                with open(args.file, 'r') as f:
-                    content = f.read()
-            elif args.content:
-                content = args.content
-            else:
-                print("Error: Either --content or --file must be specified")
-                return 1
-            
-            # Add rule
-            file_path = manager.update_custom_rules(
-                rule_content=content,
-                rule_name=args.name
-            )
-            print(f"Rule added to {file_path}")
-        
-        elif args.rule_command == "list":
-            rules = manager.get_custom_rules()
-            if not rules:
-                print("No custom rules found")
-            else:
-                print("Custom rules:")
-                for rule in rules:
-                    print(f"  {rule['name']} ({rule['file_path']})")
-        
+    elif args.command == "rule" and args.rule_command == "add":
+        # Get rule content from file or argument
+        if args.file:
+            with open(args.file, 'r') as f:
+                content = f.read()
+        elif args.content:
+            content = args.content
         else:
-            print("Error: Missing rule command")
+            print("Error: Either --content or --file must be specified")
             return 1
+        
+        # Add rule
+        result = manager.update_custom_rules(content, args.name)
+        print(f"Added rule to {result}")
+    
+    elif args.command == "rule" and args.rule_command == "list":
+        # List rules
+        rules = manager.get_custom_rules()
+        
+        if not rules:
+            print("No custom rules found.")
+            return 0
+        
+        print(f"Found {len(rules)} custom rules:")
+        
+        for i, rule in enumerate(rules, 1):
+            name = rule['name']
+            file = os.path.basename(rule['file'])
+            print(f"{i}. {name} (in {file})")
     
     elif args.command == "generate":
-        output_path = manager.generate_combined_cursorrules(
-            output_path=args.output
-        )
-        print(f"Combined cursorrules file generated at {output_path}")
+        # Generate combined cursorrules file
+        output_path = args.output
+        result = manager.generate_combined_cursorrules(output_path)
+        print(f"Generated combined cursorrules file at {result}")
     
     else:
         parser.print_help()
+        return 1
     
     return 0
 

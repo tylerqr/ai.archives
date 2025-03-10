@@ -21,12 +21,13 @@ class ArchivesManager:
     Main class for managing the AI Archives system.
     """
     
-    def __init__(self, repo_root: str = None):
+    def __init__(self, repo_root: str = None, data_repo_root: str = None):
         """
         Initialize the ArchivesManager with the repository root path.
         
         Args:
-            repo_root: Path to the repository root. If None, tries to determine automatically.
+            repo_root: Path to the main repository root. If None, tries to determine automatically.
+            data_repo_root: Path to the data repository root. If None, tries to determine from config.
         """
         # Find repo root if not provided
         if repo_root is None:
@@ -38,11 +39,25 @@ class ArchivesManager:
         self.config_path = os.path.join(self.repo_root, 'archives', 'core', 'config.json')
         self.config = self._load_config()
         
-        # Setup paths
+        # Set up data repository path
+        if data_repo_root is not None:
+            self.data_repo_root = data_repo_root
+        elif 'data_repository' in self.config.get('settings', {}) and 'path' in self.config['settings']['data_repository']:
+            self.data_repo_root = self.config['settings']['data_repository']['path']
+        else:
+            # If no data repo specified, use the main repo as data repo for backward compatibility
+            self.data_repo_root = self.repo_root
+        
+        # Setup paths for main repository
         self.archives_dir = os.path.join(self.repo_root, 'archives')
-        self.projects_dir = os.path.join(self.archives_dir, 'projects')
-        self.custom_rules_dir = os.path.join(self.archives_dir, 'custom_rules')
+        self.core_dir = os.path.join(self.archives_dir, 'core')
         self.api_dir = os.path.join(self.archives_dir, 'api')
+        self.examples_dir = os.path.join(self.archives_dir, 'examples')
+        
+        # Setup paths for data repository
+        self.data_archives_dir = os.path.join(self.data_repo_root, 'archives')
+        self.projects_dir = os.path.join(self.data_archives_dir, 'projects')
+        self.custom_rules_dir = os.path.join(self.data_archives_dir, 'custom_rules')
         
     def _find_repo_root(self) -> str:
         """
@@ -100,54 +115,49 @@ class ArchivesManager:
             section: The section name (e.g., 'setup', 'errors')
             
         Returns:
-            Tuple of (file_path, is_new)
+            Tuple of (file_path, is_new_file)
         """
-        # Validate project and section
-        valid_projects = self.config["settings"]["archive_structure"]["projects"]
-        valid_sections = self.config["settings"]["archive_structure"]["sections"]
-        
-        if project not in valid_projects:
-            raise ValueError(f"Invalid project: {project}. Valid projects are: {valid_projects}")
-        
-        if section not in valid_sections:
-            raise ValueError(f"Invalid section: {section}. Valid sections are: {valid_sections}")
-        
-        # Find all existing files for this project/section
+        # Create project and section directories if they don't exist
         project_dir = os.path.join(self.projects_dir, project)
-        if not os.path.exists(project_dir):
-            os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(project_dir, exist_ok=True)
         
-        # Pattern: section_name_YYYY-MM-DD.md
-        pattern = f"{section}_*.md"
-        matching_files = sorted(glob.glob(os.path.join(project_dir, pattern)))
+        section_dir = os.path.join(project_dir, section)
+        os.makedirs(section_dir, exist_ok=True)
         
-        max_lines = self.config["settings"]["max_file_lines"]
+        # Get all existing archive files for this section
+        archive_files = sorted(glob.glob(os.path.join(section_dir, "*.md")))
         
-        if not matching_files:
-            # No files exist yet, create a new one
-            today = datetime.now().strftime("%Y-%m-%d")
-            new_file = os.path.join(project_dir, f"{section}_{today}.md")
+        if not archive_files:
+            # No existing files, create the first one
+            new_file = os.path.join(section_dir, f"{section}_001.md")
             return new_file, True
         
-        # Check the most recent file
-        latest_file = matching_files[-1]
+        # Check the latest file to see if it's over the line limit
+        latest_file = archive_files[-1]
         
-        # Count lines in the file
-        with open(latest_file, 'r') as f:
-            line_count = sum(1 for _ in f)
+        # Get max file lines from config
+        max_lines = self.config.get('settings', {}).get('max_file_lines', 500)
         
-        if line_count >= max_lines:
-            # File is too big, create a new one
-            today = datetime.now().strftime("%Y-%m-%d")
-            new_file = os.path.join(project_dir, f"{section}_{today}.md")
+        try:
+            with open(latest_file, 'r') as f:
+                line_count = sum(1 for _ in f)
+            
+            if line_count >= max_lines:
+                # Create a new file
+                file_number = int(os.path.basename(latest_file).split('_')[1].split('.')[0])
+                new_file = os.path.join(section_dir, f"{section}_{file_number+1:03d}.md")
+                return new_file, True
+            else:
+                # Use the existing file
+                return latest_file, False
+        except Exception as e:
+            # If there's an error, create a new file to be safe
+            new_file = os.path.join(section_dir, f"{section}_001.md")
             return new_file, True
-        
-        # Use the existing file
-        return latest_file, False
-        
+
     def add_to_archives(self, project: str, section: str, content: str, title: Optional[str] = None) -> str:
         """
-        Add new content to the appropriate archive file.
+        Add content to the archives.
         
         Args:
             project: The project name (e.g., 'frontend', 'backend')
@@ -156,29 +166,29 @@ class ArchivesManager:
             title: Optional title for the entry
             
         Returns:
-            Path to the updated file
+            Path to the file the content was added to
         """
-        file_path, is_new = self.get_appropriate_archive_file(project, section)
+        # Ensure the data archives directory exists
+        os.makedirs(self.data_archives_dir, exist_ok=True)
         
-        # Format the entry
+        # Get the appropriate file to add to
+        file_path, is_new_file = self.get_appropriate_archive_file(project, section)
+        
+        # Format the content with timestamp and title
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if is_new:
-            # Create a new file with header
-            entry = f"# {project.capitalize()} Project - {section.capitalize()} Archives\n\n"
-            entry += f"## {title or f'Entry on {timestamp}'}\n\n"
-            entry += f"*Added on: {timestamp}*\n\n"
-            entry += content + "\n\n---\n\n"
-        else:
-            # Append to existing file
-            entry = f"## {title or f'Entry on {timestamp}'}\n\n"
-            entry += f"*Added on: {timestamp}*\n\n"
-            entry += content + "\n\n---\n\n"
+        if not title:
+            title = f"{section.capitalize()} update"
         
-        # Write to file
-        mode = 'w' if is_new else 'a'
+        formatted_content = f"# {title}\n\n"
+        formatted_content += f"*Date: {timestamp}*\n\n"
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        
+        # Add to the file
+        mode = 'w' if is_new_file else 'a'
         with open(file_path, mode) as f:
-            f.write(entry)
+            f.write(formatted_content)
         
         return file_path
     
@@ -230,99 +240,126 @@ class ArchivesManager:
     
     def update_custom_rules(self, rule_content: str, rule_name: str) -> str:
         """
-        Add or update a custom rule.
+        Update or create a custom rule.
         
         Args:
             rule_content: The content of the rule
-            rule_name: The name of the rule file (without extension)
+            rule_name: The name of the rule
             
         Returns:
             Path to the rule file
         """
-        if not os.path.exists(self.custom_rules_dir):
-            os.makedirs(self.custom_rules_dir, exist_ok=True)
+        # Ensure the data archives and custom rules directories exist
+        os.makedirs(self.data_archives_dir, exist_ok=True)
+        os.makedirs(self.custom_rules_dir, exist_ok=True)
         
-        rule_path = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
+        # Create or update the rule file
+        rule_file = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
         
-        with open(rule_path, 'w') as f:
+        with open(rule_file, 'w') as f:
             f.write(rule_content)
         
-        return rule_path
+        return rule_file
     
     def get_custom_rules(self) -> List[Dict[str, str]]:
         """
         Get all custom rules.
         
         Returns:
-            List of rule dictionaries with name and content
+            List of dictionaries with rule name and content
         """
-        rules = []
-        
         if not os.path.exists(self.custom_rules_dir):
-            return rules
+            return []
         
-        for file_path in glob.glob(os.path.join(self.custom_rules_dir, "*.md")):
-            rule_name = os.path.basename(file_path).replace(".md", "")
-            with open(file_path, 'r') as f:
-                content = f.read()
+        rules = []
+        rule_files = glob.glob(os.path.join(self.custom_rules_dir, "*.md"))
+        
+        for rule_file in rule_files:
+            rule_name = os.path.splitext(os.path.basename(rule_file))[0]
             
-            rules.append({
-                "name": rule_name,
-                "content": content,
-                "file_path": file_path
-            })
+            try:
+                with open(rule_file, 'r') as f:
+                    rule_content = f.read()
+                
+                rules.append({
+                    "name": rule_name,
+                    "content": rule_content,
+                    "file": rule_file
+                })
+            except Exception as e:
+                print(f"Error reading rule file {rule_file}: {str(e)}")
         
         return rules
     
     def generate_combined_cursorrules(self, output_path: Optional[str] = None) -> str:
         """
-        Generate a combined cursorrules file from the base file and custom rules.
+        Generate a combined cursorrules file with base rules and custom rules.
         
         Args:
-            output_path: Optional path for the output file. If None, uses .cursorrules in repo root.
+            output_path: Optional path for the output file. If None, uses a temporary file.
             
         Returns:
             Path to the generated file
         """
-        if output_path is None:
-            output_path = os.path.join(self.repo_root, '.cursorrules')
+        import tempfile
+        import requests
         
-        # Get the base cursorrules content
-        base_repo = self.config["settings"]["cursorrules"]["base_repo"]
-        base_branch = self.config["settings"]["cursorrules"]["base_branch"]
-        base_file = self.config["settings"]["cursorrules"]["base_file"]
+        # Get base cursorrules file from GitHub
+        base_repo = self.config.get('settings', {}).get('cursorrules', {}).get('base_repo')
+        base_branch = self.config.get('settings', {}).get('cursorrules', {}).get('base_branch')
+        base_file = self.config.get('settings', {}).get('cursorrules', {}).get('base_file')
         
-        # This part would normally fetch from GitHub, but for now, we'll use a placeholder
-        # In a real implementation, you'd use git/GitHub API to fetch the base file
-        base_content = "# Base CursorRules\n\n[Base content would be fetched from GitHub]\n\n"
+        if not base_repo or not base_branch or not base_file:
+            raise ValueError("Missing base repository information in config")
+        
+        # Fetch base cursorrules content
+        base_url = f"https://raw.githubusercontent.com/{base_repo}/{base_branch}/{base_file}"
+        response = requests.get(base_url)
+        
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch base cursorrules file: {response.status_code}")
+        
+        base_content = response.text
         
         # Get custom rules
         custom_rules = self.get_custom_rules()
-        custom_content = "# Custom Rules\n\n"
         
-        for rule in custom_rules:
-            custom_content += f"## {rule['name']}\n\n"
-            custom_content += rule['content'] + "\n\n"
+        # Combine base content with custom rules
+        combined_content = base_content
         
-        # Combine the content
-        combined_content = base_content + "\n\n" + custom_content
+        if custom_rules:
+            combined_content += "\n\n# AI Archives - Custom Rules\n\n"
+            
+            for rule in custom_rules:
+                combined_content += f"## {rule['name']}\n\n"
+                combined_content += rule['content']
+                combined_content += "\n\n"
         
-        # Write to the output file
-        with open(output_path, 'w') as f:
+        # Write to output file
+        if output_path:
+            output_file = output_path
+        else:
+            # If no output path specified, use a file in the data repo
+            output_file = os.path.join(self.data_repo_root, ".cursorrules")
+        
+        with open(output_file, 'w') as f:
             f.write(combined_content)
         
-        return output_path
+        return output_file
 
 
-# Helper function to get an instance of the manager
-def get_archives_manager() -> ArchivesManager:
+def get_archives_manager(repo_root: str = None, data_repo_root: str = None) -> ArchivesManager:
     """
     Get an instance of the ArchivesManager.
     
+    Args:
+        repo_root: Optional path to the repository root
+        data_repo_root: Optional path to the data repository root
+        
     Returns:
         ArchivesManager instance
     """
-    return ArchivesManager()
+    return ArchivesManager(repo_root=repo_root, data_repo_root=data_repo_root)
 
 
 if __name__ == "__main__":

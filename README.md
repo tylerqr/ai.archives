@@ -6,6 +6,15 @@ Give long-lived memories and searchable archives to LLMs using Cursor.
 
 The AI Archives system is an extension of the [multi-agent cursorrules system](https://github.com/grapeot/devin.cursorrules/tree/multi-agent). It provides a way for AI agents to maintain knowledge across sessions, learn from past experiences, and effectively work across multiple projects.
 
+## Repository Structure
+
+The AI Archives system consists of two repositories:
+
+1. **Main Repository (this repo)**: Contains the core system code, scripts, and utilities.
+2. **Data Repository**: Stores your project-specific archives, knowledge, and custom rules.
+
+This separation keeps the system code clean and allows you to keep your project knowledge private while still benefiting from system updates.
+
 ## Key Features
 
 - **Persistent Knowledge Base**: Preserves insights, error solutions, and project knowledge across sessions
@@ -24,7 +33,7 @@ The AI Archives system is an extension of the [multi-agent cursorrules system](h
 
 ### Installation
 
-1. Clone the repository:
+1. Clone the main repository:
    ```bash
    git clone https://github.com/tylerqr/ai.archives.git
    cd ai.archives
@@ -35,9 +44,24 @@ The AI Archives system is an extension of the [multi-agent cursorrules system](h
    pip install -r requirements.txt
    ```
 
-3. Run the setup script:
+3. Create your data repository:
+   This repository will store your project-specific archives. It should be created outside of your existing project directories to avoid cluttering them.
+   
    ```bash
-   python scripts/setup.py
+   # Navigate to a location outside your project directories
+   cd /path/to/storage/location
+   
+   # Create a data repository with a custom name (recommended format: ai.archives.{your-project-name})
+   # For example, if your project is called "myapp":
+   mkdir ai.archives.myapp
+   cd ai.archives.myapp
+   git init
+   ```
+
+4. Run the setup script, pointing to your data repository:
+   ```bash
+   cd /path/to/ai.archives
+   python scripts/setup.py --data-repo /path/to/storage/location/ai.archives.myapp
    ```
 
 ### Basic Usage
@@ -75,18 +99,23 @@ For a complete list of dependencies, see [requirements.txt](requirements.txt).
 ## Directory Structure
 
 ```
-ai.archives/
+ai.archives/               # Main system repository
 ├── archives/
-│   ├── core/            # Core system files and utilities
-│   ├── projects/        # Project-specific knowledge
-│   │   ├── frontend/    # Frontend project knowledge
-│   │   ├── backend/     # Backend project knowledge
-│   │   └── shared/      # Shared knowledge across projects
-│   ├── custom_rules/    # Custom cursorrules that survive updates
-│   └── api/             # API documentation and cross-project reference
-├── scripts/             # Utility scripts for managing the archives
-├── INTEGRATION_GUIDE.md # Detailed integration instructions
-└── requirements.txt     # Python dependencies
+│   ├── core/              # Core system files and utilities
+│   ├── api/               # API documentation
+│   └── examples/          # Example configurations and templates
+├── scripts/               # Utility scripts for managing the archives
+├── INTEGRATION_GUIDE.md   # Detailed integration instructions
+└── requirements.txt       # Python dependencies
+
+ai.archives.{project}/    # Your data repository (created separately)
+├── archives/
+│   ├── projects/          # Project-specific knowledge
+│   │   ├── frontend/      # Frontend project knowledge
+│   │   ├── backend/       # Backend project knowledge
+│   │   └── shared/        # Shared knowledge across projects
+│   └── custom_rules/      # Custom cursorrules that survive updates
+└── .cursorrules           # Generated custom cursorrules file
 ```
 
 ## How It Works

@@ -64,16 +64,19 @@ def merge_with_custom_rules(base_content, custom_rules):
     """
     print(f"Merging with {len(custom_rules)} custom rules...")
     
+    if not custom_rules:
+        return base_content
+    
     # Create the custom rules section
-    custom_rules_content = "# AI Archives - Custom Rules\n\n"
+    custom_rules_content = "\n\n# AI Archives - Custom Rules\n\n"
     
     # Add each custom rule
     for rule in custom_rules:
         custom_rules_content += f"## {rule['name']}\n\n"
         custom_rules_content += rule['content'] + "\n\n"
     
-    # Combine custom rules (at the top) with base content
-    merged_content = custom_rules_content + "\n" + base_content
+    # Combine base content with custom rules (at the end)
+    merged_content = base_content + custom_rules_content
     
     return merged_content
 
@@ -90,6 +93,9 @@ def write_combined_file(content, output_path):
         Path to the written file
     """
     print(f"Writing combined cursorrules to {output_path}...")
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     
     with open(output_path, 'w') as f:
         f.write(content)
@@ -133,11 +139,12 @@ def main():
     parser.add_argument("--output", "-o", help="Output file path")
     parser.add_argument("--token", "-t", help="GitHub API token")
     parser.add_argument("--copy-to", "-c", help="Copy the combined file to a target project")
+    parser.add_argument("--data-repo", "-d", help="Path to the data repository")
     
     args = parser.parse_args()
     
     # Get archives manager and GitHub integration
-    manager = get_archives_manager()
+    manager = get_archives_manager(data_repo_root=args.data_repo)
     github = get_github_integration(args.token)
     
     # Get config
@@ -146,7 +153,11 @@ def main():
     # Set default output path if not provided
     output_path = args.output
     if not output_path:
-        output_path = os.path.join(manager.repo_root, '.cursorrules')
+        # Default to data repository if available, otherwise use main repo
+        if hasattr(manager, 'data_repo_root') and manager.data_repo_root != manager.repo_root:
+            output_path = os.path.join(manager.data_repo_root, '.cursorrules')
+        else:
+            output_path = os.path.join(manager.repo_root, '.cursorrules')
     
     # Fetch base cursorrules
     base_content = fetch_base_cursorrules(config, github)

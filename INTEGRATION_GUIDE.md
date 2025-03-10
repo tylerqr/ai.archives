@@ -5,6 +5,7 @@ This guide explains how to integrate the AI Archives system with your existing p
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Repository Structure](#repository-structure)
 - [Installation](#installation)
 - [Basic Setup](#basic-setup)
 - [Integrating with Frontend Projects](#integrating-with-frontend-projects)
@@ -23,9 +24,38 @@ Before you begin, ensure you have the following:
 - Access to the repositories you want to integrate with
 - Basic understanding of command-line operations
 
+## Repository Structure
+
+The AI Archives system uses a two-repository structure:
+
+1. **Main Repository** (`ai.archives`): Contains the core system code, scripts, and utilities
+2. **Data Repository** (`ai.archives.{your-project-name}`): Stores your project-specific archives, knowledge, and custom rules
+
+This separation keeps the system code clean and allows you to keep your project knowledge private while still benefiting from system updates.
+
+```
+ai.archives/               # Main system repository
+├── archives/
+│   ├── core/              # Core system files and utilities
+│   ├── api/               # API documentation
+│   └── examples/          # Example configurations and templates
+├── scripts/               # Utility scripts for managing the archives
+├── INTEGRATION_GUIDE.md   # Detailed integration instructions
+└── requirements.txt       # Python dependencies
+
+ai.archives.{project}/    # Your data repository (created separately)
+├── archives/
+│   ├── projects/          # Project-specific knowledge
+│   │   ├── frontend/      # Frontend project knowledge
+│   │   ├── backend/       # Backend project knowledge
+│   │   └── shared/        # Shared knowledge across projects
+│   └── custom_rules/      # Custom cursorrules that survive updates
+└── .cursorrules           # Generated custom cursorrules file
+```
+
 ## Installation
 
-1. Clone the AI Archives repository:
+1. Clone the main AI Archives repository:
 
 ```bash
 git clone https://github.com/tylerqr/ai.archives.git
@@ -38,22 +68,35 @@ cd ai.archives
 pip install -r requirements.txt
 ```
 
-3. (Optional) Set up GitHub access:
+3. Create your data repository:
 
 ```bash
-# Set GitHub token for API access (recommended)
-export GITHUB_TOKEN=your_github_token
+# Navigate to a location outside your project directories
+cd /path/to/storage/location
+
+# Create a data repository with a custom name (recommended format: ai.archives.{your-project-name})
+# For example, if your project is called "myapp":
+mkdir ai.archives.myapp
+cd ai.archives.myapp
+git init
 ```
+
+This repository will store your project-specific archives. It should be created outside of your existing project directories to avoid cluttering them.
 
 ## Basic Setup
 
-The AI Archives system provides a setup script to help you get started:
+The AI Archives system provides a setup script to help you configure both repositories:
 
 ```bash
-python scripts/setup.py
+cd /path/to/ai.archives
+python scripts/setup.py --data-repo /path/to/storage/location/ai.archives.myapp
 ```
 
-This script will check prerequisites, validate the directory structure, and guide you through the setup process.
+This script will:
+1. Check prerequisites
+2. Configure the data repository
+3. Create the necessary directory structure
+4. Generate an initial .cursorrules file
 
 For more advanced setup options:
 
@@ -65,25 +108,29 @@ python scripts/setup.py --help
 
 ### Method 1: Symlink (Recommended)
 
-Create a symlink to the AI Archives system in your frontend project:
+Create symlinks to both repositories in your frontend project:
 
 ```bash
-python scripts/setup.py --link frontend /path/to/frontend/project
+python scripts/setup.py --data-repo /path/to/ai.archives.myapp --link frontend /path/to/frontend/project
 ```
 
 This will:
 1. Create a symlink to the AI Archives in your project
-2. (Optional) Copy the .cursorrules file to your project
+2. Create a symlink to your data repository
+3. (Optional) Copy the .cursorrules file to your project
 
-### Method 2: Copy
+### Method 2: Direct File Access
 
-Copy the AI Archives system to your frontend project:
+If symlinks are not an option, you can directly access the files:
 
 ```bash
-python scripts/setup.py --target /path/to/frontend/project
-```
+# Set environment variables to point to the repositories
+export AI_ARCHIVES_MAIN=/path/to/ai.archives
+export AI_ARCHIVES_DATA=/path/to/ai.archives.myapp
 
-This will copy all necessary files to your frontend project directory.
+# Run commands directly
+$AI_ARCHIVES_MAIN/scripts/archives_cli.py --data-repo=$AI_ARCHIVES_DATA add --project=frontend --section=setup --title="Project Setup" --content="Your knowledge here"
+```
 
 ### Frontend-Specific Archives
 
@@ -104,13 +151,18 @@ The integration process for backend projects is similar to frontend projects:
 ### Method 1: Symlink (Recommended)
 
 ```bash
-python scripts/setup.py --link backend /path/to/backend/project
+python scripts/setup.py --data-repo /path/to/ai.archives.myapp --link backend /path/to/backend/project
 ```
 
-### Method 2: Copy
+### Method 2: Direct File Access
 
 ```bash
-python scripts/setup.py --target /path/to/backend/project
+# Set environment variables to point to the repositories
+export AI_ARCHIVES_MAIN=/path/to/ai.archives
+export AI_ARCHIVES_DATA=/path/to/ai.archives.myapp
+
+# Run commands directly
+$AI_ARCHIVES_MAIN/scripts/archives_cli.py --data-repo=$AI_ARCHIVES_DATA add --project=backend --section=apis --title="API Documentation" --content="Your API documentation here"
 ```
 
 ### Backend-Specific Archives
@@ -194,13 +246,16 @@ Regularly update the archives with new knowledge:
 python scripts/archives_cli.py add --project=frontend --section=fixes --title="Fixed Layout Bug"
 ```
 
-### Updating Base Cursorrules
+### Updating the AI Archives System
 
-Update the base cursorrules file from the source repository:
+To update the main system repository:
 
 ```bash
-python scripts/integrate_cursorrules.py
+cd /path/to/ai.archives
+git pull
 ```
+
+Your data repository remains untouched, preserving your knowledge while allowing you to benefit from system improvements.
 
 ### File Size Management
 
@@ -212,24 +267,30 @@ The AI Archives system automatically manages file sizes:
 
 ### Common Issues
 
-1. **Import Errors**: Make sure you're running scripts from the correct directory
+1. **Repository Path Issues**: If you're getting errors about not finding the data repository, make sure the path is correctly set in the configuration:
+   ```bash
+   # Check your data repository configuration
+   cat /path/to/ai.archives/archives/core/config.json
+   ```
+
+2. **Import Errors**: Make sure you're running scripts from the correct directory
    ```bash
    cd /path/to/ai.archives
    python scripts/archives_cli.py ...
    ```
 
-2. **GitHub API Errors**: Ensure your GitHub token is set and has the required permissions
+3. **GitHub API Errors**: Ensure your GitHub token is set and has the required permissions if using GitHub functionality
    ```bash
    export GITHUB_TOKEN=your_github_token
    ```
 
-3. **File Not Found Errors**: Check paths and directory structure
+4. **File Not Found Errors**: Check paths and directory structure
    ```bash
    # Verify directory structure
    python scripts/setup.py
    ```
 
-4. **Permission Errors**: Ensure you have write permissions to the target directories
+5. **Permission Errors**: Ensure you have write permissions to the target directories
    ```bash
    # Check if you can write to the directory
    touch /path/to/target/directory/test.txt
