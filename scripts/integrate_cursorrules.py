@@ -59,26 +59,47 @@ def sanitize_content(content):
 
 def fetch_base_cursorrules(config, github):
     """
-    Fetch the base cursorrules file from the source repository.
+    Fetch the base cursorrules file from GitHub.
     
     Args:
         config: Configuration dictionary
-        github: GitHubIntegration instance
+        github: GitHub integration instance
         
     Returns:
-        Content of the cursorrules file
+        Content of the base cursorrules file
     """
     base_repo = config["settings"]["cursorrules"]["base_repo"]
     base_branch = config["settings"]["cursorrules"]["base_branch"]
     base_file = config["settings"]["cursorrules"]["base_file"]
     
-    print(f"Fetching base cursorrules from {base_repo}:{base_branch}/{base_file}...")
-    
-    content = github.fetch_base_cursorrules(
-        repo=base_repo,
-        branch=base_branch,
-        file_path=base_file
-    )
+    # Check if the base_repo is a full URL or just owner/repo
+    if base_repo.startswith("http"):
+        print(f"Fetching base cursorrules from {base_repo}:{base_branch}/{base_file}...")
+        # For URLs, use requests directly
+        import requests
+        url = f"{base_repo.rstrip('/')}/{base_file}"
+        if base_branch:
+            # If it's a GitHub URL, adjust for the branch
+            if "github.com" in base_repo:
+                url = f"{base_repo.rstrip('/')}/raw/{base_branch}/{base_file}"
+            else:
+                # For other Git hosts, this might need adjustment
+                url = f"{base_repo.rstrip('/')}/{base_branch}/{base_file}"
+        
+        response = requests.get(url)
+        if response.status_code != 200:
+            print(f"Failed to fetch base cursorrules file: {response.status_code}")
+            sys.exit(1)
+        
+        content = response.text
+    else:
+        # Use the GitHub API for owner/repo format
+        print(f"Fetching base cursorrules from {base_repo}:{base_branch}/{base_file}...")
+        content = github.fetch_base_cursorrules(
+            repo=base_repo,
+            branch=base_branch,
+            file_path=base_file
+        )
     
     if not content:
         print("Failed to fetch base cursorrules file.")

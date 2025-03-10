@@ -72,17 +72,27 @@ class GitHubIntegration:
     
     def fetch_base_cursorrules(self, repo: str, branch: str, file_path: str) -> Optional[str]:
         """
-        Fetch the base cursorrules file from the specified repository.
+        Fetch the base cursorrules file from a GitHub repository.
         
         Args:
-            repo: Repository name in format "owner/repo"
+            repo: Repository in the format "owner/repo" or "owner/repo:branch"
             branch: Branch name
             file_path: Path to the cursorrules file
             
         Returns:
             Content of the cursorrules file, or None if not found
         """
-        owner, repo_name = repo.split('/')
+        # Handle repo format that might include branch information
+        if ':' in repo:
+            repo_parts = repo.split(':')
+            repo = repo_parts[0]  # Take only the owner/repo part
+        
+        # Split the owner and repo name
+        try:
+            owner, repo_name = repo.split('/')
+        except ValueError:
+            raise ValueError(f"Invalid repository format: {repo}. Expected format: 'owner/repo'")
+        
         return self.fetch_file_content(owner, repo_name, file_path, branch)
     
     def create_or_update_file(self, owner: str, repo: str, path: str, 
