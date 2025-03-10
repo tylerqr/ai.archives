@@ -116,33 +116,52 @@ class ArchivesManager:
     
     def _load_config(self) -> Dict[str, Any]:
         """
-        Load the configuration file.
+        Load configuration from the config file.
         
         Returns:
-            Configuration dictionary.
+            Configuration dictionary
         """
-        if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        else:
-            # Return default config if file doesn't exist
-            return {
-                "version": "1.0.0",
-                "settings": {
-                    "max_file_lines": 500,
-                    "default_format": "markdown",
-                    "archive_structure": {
-                        "projects": ["frontend", "backend", "shared"],
-                        "sections": ["setup", "architecture", "errors", "fixes", "apis", "dependencies", "recommendations"]
-                    },
-                    "cursorrules": {
-                        "base_repo": "https://github.com/grapeot/devin.cursorrules",
-                        "base_branch": "multi-agent",
-                        "base_file": ".cursorrules",
-                        "custom_rules_dir": "archives/custom_rules"
-                    }
+        config_path = os.path.join(self.repo_root, 'archives', 'core', 'config.json')
+        
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                return config
+            except Exception as e:
+                print(f"Error loading config: {str(e)}")
+                
+        # Return default config if file not found or error
+        return {
+            "version": "1.0.0",
+            "settings": {
+                "max_file_lines": 500,
+                "default_format": "markdown",
+                "archive_structure": {
+                    "projects": ["frontend", "backend", "shared"],
+                    "sections": [
+                        "setup",
+                        "architecture",
+                        "errors",
+                        "fixes",
+                        "apis",
+                        "dependencies",
+                        "recommendations"
+                    ]
+                },
+                "cursorrules": {
+                    "base_repo": "grapeot/devin.cursorrules",
+                    "base_branch": "multi-agent",
+                    "base_file": ".cursorrules",
+                    "custom_rules_dir": "archives/custom_rules"
+                },
+                "history_logging": {
+                    "enabled": True,
+                    "log_dir": "archives/history_logs",
+                    "max_retention_days": 30
                 }
             }
+        }
     
     def get_appropriate_archive_file(self, project: str, section: str) -> Tuple[str, bool]:
         """
