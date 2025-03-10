@@ -125,18 +125,39 @@ def merge_with_custom_rules(base_content, custom_rules):
     if not custom_rules:
         return base_content
     
-    # Create the custom rules section
+    # Create the custom rules section header
     custom_rules_content = "\n\n# AI Archives - Custom Rules\n\n"
     
-    # Add each custom rule
+    # First, check if we have the AI Archives integration rules
+    archives_rules = None
+    other_rules = []
+    
     for rule in custom_rules:
+        if rule['name'].lower() in ['ai_archives_integration', 'archives_integration', 'custom-rules']:
+            archives_rules = rule
+        else:
+            other_rules.append(rule)
+    
+    # Add the AI Archives integration rules first if they exist
+    if archives_rules:
+        custom_rules_content += f"## {archives_rules['name']}\n\n"
+        custom_rules_content += archives_rules['content'] + "\n\n"
+    
+    # Add each remaining custom rule
+    for rule in other_rules:
         custom_rules_content += f"## {rule['name']}\n\n"
         # Sanitize the rule content to remove ANSI color codes and error messages
         sanitized_content = sanitize_content(rule['content'])
         custom_rules_content += sanitized_content + "\n\n"
     
-    # Combine base content with custom rules (at the end)
-    merged_content = base_content + custom_rules_content
+    # Check if the base content already contains a custom rules section
+    if "# AI Archives - Custom Rules" not in base_content:
+        # Combine base content with custom rules (at the end)
+        merged_content = base_content + custom_rules_content
+    else:
+        # Replace the existing custom rules section
+        parts = base_content.split("# AI Archives - Custom Rules")
+        merged_content = parts[0] + "# AI Archives - Custom Rules" + custom_rules_content
     
     return merged_content
 

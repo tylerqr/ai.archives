@@ -99,131 +99,224 @@ def setup_ai_archives(data_repo=None, target_dir=None):
         if not os.path.exists(git_dir):
             if prompt_yes_no(f"Directory {data_repo_path} is not a Git repository. Initialize it?"):
                 try:
-                    subprocess.run(["git", "init"], cwd=data_repo_path, check=True)
-                    print(f"✓ Initialized Git repository at {data_repo_path}")
-                except subprocess.SubprocessError as e:
-                    print(f"Error initializing Git repository: {str(e)}")
+                    subprocess.check_call(["git", "init"], cwd=data_repo_path)
+                    print(f"Initialized Git repository at {data_repo_path}")
+                except subprocess.SubprocessError:
+                    print(f"Warning: Could not initialize Git repository at {data_repo_path}")
         
-        # Create archives directory structure in data repo
-        archives_dst = os.path.join(data_repo_path, "archives")
-        if not os.path.exists(archives_dst):
-            os.makedirs(archives_dst, exist_ok=True)
-            
-            # Create project directories
-            projects_dir = os.path.join(archives_dst, "projects")
-            os.makedirs(projects_dir, exist_ok=True)
-            
-            for project_type in ["frontend", "backend", "shared"]:
-                os.makedirs(os.path.join(projects_dir, project_type), exist_ok=True)
-            
-            # Create custom rules directory
-            custom_rules_dir = os.path.join(archives_dst, "custom_rules")
-            os.makedirs(custom_rules_dir, exist_ok=True)
-            
-            print(f"✓ Created archives directory structure in {data_repo_path}")
+        # Create archive directory structure
+        print("Creating archive directory structure...")
+        archives_dir = os.path.join(data_repo_path, "archives")
+        os.makedirs(archives_dir, exist_ok=True)
         
-        # Update config to point to the data repository
-        config_path = os.path.join(manager.repo_root, 'archives', 'core', 'config.json')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            
-            # Add data repository information to config
-            if 'data_repository' not in config['settings']:
-                config['settings']['data_repository'] = {}
-            
-            config['settings']['data_repository']['path'] = data_repo_path
-            config['settings']['data_repository']['name'] = os.path.basename(data_repo_path)
-            
-            with open(config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            print(f"✓ Updated configuration to use data repository: {data_repo_path}")
+        projects_dir = os.path.join(archives_dir, "projects")
+        os.makedirs(projects_dir, exist_ok=True)
         
-        # Generate a default .cursorrules file in the data repository
-        cursorrules_path = os.path.join(data_repo_path, ".cursorrules")
-        if not os.path.exists(cursorrules_path):
-            try:
-                # Try to generate from source
-                manager.generate_combined_cursorrules(cursorrules_path)
-                print(f"✓ Generated .cursorrules file at {cursorrules_path}")
-            except Exception as e:
-                print(f"Warning: Could not generate .cursorrules file: {str(e)}")
-                print("You will need to generate the .cursorrules file manually later.")
+        custom_rules_dir = os.path.join(archives_dir, "custom_rules")
+        os.makedirs(custom_rules_dir, exist_ok=True)
+        
+        # Create script proxies directory
+        scripts_dir = os.path.join(data_repo_path, "scripts")
+        os.makedirs(scripts_dir, exist_ok=True)
+        
+        # Create proxy scripts that point to the main repo
+        create_proxy_scripts(data_repo_path, repo_root)
+        
+        # Default project structure
+        for project in manager.config["settings"]["archive_structure"]["projects"]:
+            project_dir = os.path.join(projects_dir, project)
+            os.makedirs(project_dir, exist_ok=True)
+            
+            for section in manager.config["settings"]["archive_structure"]["sections"]:
+                section_dir = os.path.join(project_dir, section)
+                os.makedirs(section_dir, exist_ok=True)
+        
+        # Create a README.md file
+        readme_path = os.path.join(data_repo_path, "README.md")
+        if not os.path.exists(readme_path):
+            with open(readme_path, 'w') as f:
+                f.write(textwrap.dedent("""
+                # AI Archives Data Repository
+                
+                This repository stores the actual archive content for the AI Archives system. It's separated from the system code to allow independent versioning and management of archive content.
+                
+                ## Repository Structure
+                
+                ```
+                ai.archives-data/
+                └── archives/
+                    ├── custom_rules/   # Custom rules for AI agents
+                    └── projects/       # Project-specific knowledge archives
+                        ├── frontend/   # Frontend-specific archives
+                        │   ├── setup/  # Setup guides
+                        │   ├── errors/ # Common errors and solutions
+                        │   └── ...     # Other frontend categories
+                        ├── backend/    # Backend-specific archives
+                        │   ├── apis/   # API documentation
+                        │   ├── db/     # Database schema and queries
+                        │   └── ...     # Other backend categories
+                        └── shared/     # Shared knowledge
+                            ├── architecture/ # System architecture
+                            └── ...     # Other shared categories
+                ```
+                
+                This repository is designed to be used with the [AI Archives system](https://github.com/tylerqr/ai.archives). It should be linked via symlinks as described in the integration guide.
+                
+                DO NOT DIRECTLY MODIFY FILES in this repository - all interactions should happen through the AI Archives system's CLI tools.
+                """).strip())
+        
+        return data_repo_path
     
-    # Handle target directory setup (for backward compatibility)
-    elif target_dir:
-        target_path = os.path.abspath(target_dir)
-        print(f"Setting up AI Archives in {target_path}")
-        
-        # Create target directory if it doesn't exist
-        os.makedirs(target_path, exist_ok=True)
-        
-        # Copy archives directory structure to target
-        archives_src = os.path.join(manager.repo_root, "archives")
-        archives_dst = os.path.join(target_path, "archives")
-        
-        if os.path.exists(archives_dst):
-            if not prompt_yes_no(f"Archives directory already exists at {archives_dst}. Overwrite?", default="no"):
-                print("Setup aborted.")
-                return False
-            shutil.rmtree(archives_dst)
-        
-        # Copy archives
-        shutil.copytree(archives_src, archives_dst)
-        
-        # Copy scripts
-        scripts_src = os.path.join(manager.repo_root, "scripts")
-        scripts_dst = os.path.join(target_path, "scripts")
-        
-        if os.path.exists(scripts_dst):
-            if not prompt_yes_no(f"Scripts directory already exists at {scripts_dst}. Overwrite?", default="no"):
-                print("Continuing without overwriting scripts.")
-            else:
-                shutil.rmtree(scripts_dst)
-                shutil.copytree(scripts_src, scripts_dst)
-        else:
-            shutil.copytree(scripts_src, scripts_dst)
-        
-        # Copy requirements.txt
-        requirements_src = os.path.join(manager.repo_root, "requirements.txt")
-        requirements_dst = os.path.join(target_path, "requirements.txt")
-        
-        if os.path.exists(requirements_dst):
-            if prompt_yes_no(f"requirements.txt already exists at {requirements_dst}. Overwrite?", default="no"):
-                shutil.copy2(requirements_src, requirements_dst)
-        else:
-            shutil.copy2(requirements_src, requirements_dst)
-        
-        # Generate a default .cursorrules file
-        cursorrules_path = os.path.join(target_path, ".cursorrules")
-        if not os.path.exists(cursorrules_path):
-            try:
-                # Try to generate from source
-                manager.generate_combined_cursorrules(cursorrules_path)
-            except Exception as e:
-                print(f"Warning: Could not generate .cursorrules file: {str(e)}")
-                print("You will need to generate the .cursorrules file manually later.")
-        
-        print("\n✓ AI Archives system files copied successfully.")
-    else:
-        # Just validate the existing structure
-        archives_dir = os.path.join(manager.repo_root, "archives")
-        if not os.path.exists(archives_dir):
-            print("Error: Archives directory not found.")
-            return False
-        
-        # Check for required subdirectories
-        required_dirs = ["core", "api", "examples"]
-        for dir_name in required_dirs:
-            dir_path = os.path.join(archives_dir, dir_name)
-            if not os.path.exists(dir_path):
-                print(f"Creating missing directory: {dir_path}")
-                os.makedirs(dir_path, exist_ok=True)
-        
-        print("\n✓ AI Archives directory structure verified/created.")
+    return None
+
+
+def create_proxy_scripts(data_repo_path, main_repo_path):
+    """Create proxy scripts in the data repo that point to scripts in the main repo"""
+    print("Creating proxy scripts in data repo...")
     
-    return True
+    scripts_dir = os.path.join(data_repo_path, "scripts")
+    
+    # Create the regenerate_cursorrules.py proxy script
+    regenerate_script_path = os.path.join(scripts_dir, "regenerate_cursorrules.py")
+    with open(regenerate_script_path, 'w') as f:
+        f.write(textwrap.dedent(f"""#!/usr/bin/env python3
+        \"\"\"
+        Proxy script to regenerate the .cursorrules file
+        
+        This script finds the main AI Archives repository and calls the integrate_cursorrules.py script there.
+        \"\"\"
+        
+        import os
+        import sys
+        import subprocess
+        
+        # The main repo is configured during setup
+        MAIN_REPO_PATH = {repr(os.path.abspath(main_repo_path))}
+        
+        def main():
+            # Check if the path exists
+            if not os.path.exists(MAIN_REPO_PATH):
+                print(f"Error: Main repository not found at {{MAIN_REPO_PATH}}")
+                print("Please update the MAIN_REPO_PATH in this script to point to your main AI Archives repository.")
+                return 1
+            
+            # The actual script we want to run
+            target_script = os.path.join(MAIN_REPO_PATH, "scripts", "integrate_cursorrules.py")
+            
+            if not os.path.exists(target_script):
+                print(f"Error: Script not found at {{target_script}}")
+                return 1
+            
+            # Pass all arguments to the target script
+            print(f"Running {{target_script}}...")
+            result = subprocess.call([sys.executable, target_script] + sys.argv[1:])
+            return result
+        
+        if __name__ == "__main__":
+            sys.exit(main())
+        """))
+    
+    # Make the script executable
+    os.chmod(regenerate_script_path, 0o755)
+    
+    # Create the search_archives.py proxy script
+    search_script_path = os.path.join(scripts_dir, "search_archives.py")
+    with open(search_script_path, 'w') as f:
+        f.write(textwrap.dedent(f"""#!/usr/bin/env python3
+        \"\"\"
+        Proxy script to search the archives
+        
+        This script finds the main AI Archives repository and calls the archives_cli.py script there.
+        \"\"\"
+        
+        import os
+        import sys
+        import subprocess
+        
+        # The main repo is configured during setup
+        MAIN_REPO_PATH = {repr(os.path.abspath(main_repo_path))}
+        DATA_REPO_PATH = {repr(os.path.abspath(data_repo_path))}
+        
+        def main():
+            # Check if the path exists
+            if not os.path.exists(MAIN_REPO_PATH):
+                print(f"Error: Main repository not found at {{MAIN_REPO_PATH}}")
+                print("Please update the MAIN_REPO_PATH in this script to point to your main AI Archives repository.")
+                return 1
+            
+            # The actual script we want to run
+            target_script = os.path.join(MAIN_REPO_PATH, "scripts", "archives_cli.py")
+            
+            if not os.path.exists(target_script):
+                print(f"Error: Script not found at {{target_script}}")
+                return 1
+            
+            # Default to quick-search if no command is specified
+            args = sys.argv[1:]
+            if not args or args[0] not in ['search', 'quick-search', 'add', 'list', 'rule', 'generate']:
+                # If the first arg is not a command, assume it's a search query
+                if args:
+                    args = ['quick-search'] + args
+                else:
+                    print("Usage: python search_archives.py [command] [options]")
+                    print("Commands: search, quick-search, add, list, rule, generate")
+                    print("For quick search: python search_archives.py \"your search query\"")
+                    return 1
+            
+            # Add the data repo location
+            args = ['--data-repo', DATA_REPO_PATH] + args
+            
+            # Pass arguments to the target script
+            cmd = [sys.executable, target_script] + args
+            print(f"Running: {{' '.join(cmd)}}")
+            result = subprocess.call(cmd)
+            return result
+        
+        if __name__ == "__main__":
+            sys.exit(main())
+        """))
+    
+    # Make the script executable
+    os.chmod(search_script_path, 0o755)
+    
+    # Create a readme for the scripts directory
+    readme_path = os.path.join(scripts_dir, "README.md")
+    with open(readme_path, 'w') as f:
+        f.write(textwrap.dedent(f"""
+        # AI Archives Proxy Scripts
+        
+        These scripts provide convenient access to the AI Archives main repository scripts. They are configured to automatically find the main repository at:
+        
+        ```
+        {os.path.abspath(main_repo_path)}
+        ```
+        
+        If you've moved your main repository, please update the `MAIN_REPO_PATH` variable in each script.
+        
+        ## Available Scripts
+        
+        * `regenerate_cursorrules.py` - Regenerates the .cursorrules file with the latest custom rules
+        * `search_archives.py` - Search the archives (simplifies access to archives_cli.py)
+        
+        ## Usage
+        
+        Run the scripts from this directory:
+        
+        ```bash
+        # Regenerate the .cursorrules file
+        python regenerate_cursorrules.py
+        
+        # Quick search the archives
+        python search_archives.py "your search query"
+        
+        # Other archive operations 
+        python search_archives.py add --project=frontend --section=styling --title="CSS Grid Guide" --content="..."
+        ```
+        """).strip())
+    
+    print(f"✓ Created proxy scripts in {scripts_dir}")
+    
+    return scripts_dir
 
 
 def setup_cross_project_links(projects, data_repo=None):
@@ -364,6 +457,88 @@ def create_sample_content(data_repo=None):
         )
         print("✓ Created sample frontend setup entry")
         
+        # Create sample NativeWind documentation
+        nativewind_content = textwrap.dedent("""
+        # NativeWind Usage Guide
+        
+        NativeWind is a styling solution for React Native that brings Tailwind CSS to React Native.
+        
+        ## Installation
+        
+        1. Install NativeWind:
+        ```bash
+        npm install nativewind
+        npm install --dev tailwindcss@3.3.2
+        ```
+        
+        2. Initialize Tailwind CSS:
+        ```bash
+        npx tailwindcss init
+        ```
+        
+        3. Configure `tailwind.config.js`:
+        ```js
+        module.exports = {
+          content: ["./App.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
+          theme: {
+            extend: {},
+          },
+          plugins: [],
+        }
+        ```
+        
+        4. Configure your `babel.config.js` to include NativeWind:
+        ```js
+        module.exports = {
+          presets: ['babel-preset-expo'],
+          plugins: ["nativewind/babel"],
+        }
+        ```
+        
+        ## Usage
+        
+        Apply Tailwind classes using the `className` prop:
+        
+        ```jsx
+        import { View, Text } from 'react-native';
+        
+        export function MyComponent() {
+          return (
+            <View className="flex-1 items-center justify-center bg-white">
+              <Text className="text-blue-600 font-bold text-xl">Hello from NativeWind</Text>
+            </View>
+          );
+        }
+        ```
+        
+        ## Troubleshooting
+        
+        ### Common Issues
+        
+        1. Styles not being applied:
+           - Make sure you've properly configured your babel.config.js
+           - Clear Metro bundler cache: `npx react-native start --reset-cache`
+        
+        2. TypeScript errors:
+           - Add the types in your `app.d.ts` file:
+           ```ts
+           /// <reference types="nativewind/types" />
+           ```
+        
+        ### Performance Considerations
+        
+        - Use `className` for dynamic styles that change based on state
+        - For completely static styles, consider using StyleSheet for better performance
+        """).strip()
+        
+        manager.add_to_archives(
+            project="frontend",
+            section="styling",
+            content=nativewind_content,
+            title="NativeWind Usage Guide"
+        )
+        print("✓ Created sample NativeWind documentation")
+        
         # Create sample backend API entry
         backend_content = textwrap.dedent("""
         This is a sample entry for the backend API documentation.
@@ -428,6 +603,21 @@ def create_sample_content(data_repo=None):
             rule_name="code_style"
         )
         print("✓ Created sample custom rule")
+        
+        # Copy over the AI Archives System Integration Rules
+        try:
+            source_rules_path = os.path.join(manager.repo_root, "archives", "custom_rules", "custom-rules.md")
+            if os.path.exists(source_rules_path):
+                with open(source_rules_path, 'r') as f:
+                    archives_rules_content = f.read()
+                
+                manager.update_custom_rules(
+                    rule_content=archives_rules_content,
+                    rule_name="ai_archives_integration"
+                )
+                print("✓ Added AI Archives System Integration Rules")
+        except Exception as e:
+            print(f"Warning: Could not copy AI Archives System Integration Rules: {e}")
     
     return True
 
