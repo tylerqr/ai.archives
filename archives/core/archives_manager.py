@@ -14,7 +14,43 @@ import glob
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+import tempfile
+import shutil
 
+# Regular expression to match ANSI color codes
+ANSI_COLOR_PATTERN = re.compile(r'\x1B\[\d+(;\d+)*(;*[mK])')
+# Improved regex for error messages
+ERROR_MESSAGE_PATTERN = re.compile(r'(\[31m|\[1m|\[22m|\[39m|Usage Error[^\n]*)')
+# Regex to fix yarn commands
+YARN_COMMAND_PATTERN = re.compile(r'\$ +yarn +run +\[.*?\] +your-script')
+
+def sanitize_content(content):
+    """
+    Remove ANSI color codes and error messages from the content.
+    
+    Args:
+        content: The content to sanitize
+        
+    Returns:
+        Sanitized content
+    """
+    # Remove ANSI color codes
+    sanitized = ANSI_COLOR_PATTERN.sub('', content)
+    
+    # Remove error messages
+    sanitized = ERROR_MESSAGE_PATTERN.sub('', sanitized)
+    
+    # Fix yarn commands
+    sanitized = YARN_COMMAND_PATTERN.sub('`yarn ios`', sanitized)
+    sanitized = sanitized.replace('`yarn ios` ... to build and run on Android simulator or device', '`yarn android` to build and run on Android simulator or device')
+    
+    # Fix common issues with code command examples
+    sanitized = sanitized.replace("<scriptName> ...", "your-script ...")
+    
+    # Fix multiple consecutive newlines that might appear after removing content
+    sanitized = re.sub(r'\n{3,}', '\n\n', sanitized)
+    
+    return sanitized
 
 class ArchivesManager:
     """
@@ -253,11 +289,14 @@ class ArchivesManager:
         os.makedirs(self.data_archives_dir, exist_ok=True)
         os.makedirs(self.custom_rules_dir, exist_ok=True)
         
+        # Sanitize the rule content to remove ANSI color codes and error messages
+        sanitized_content = sanitize_content(rule_content)
+        
         # Create or update the rule file
         rule_file = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
         
         with open(rule_file, 'w') as f:
-            f.write(rule_content)
+            f.write(sanitized_content)
         
         return rule_file
     
