@@ -86,7 +86,7 @@ def setup_data_directory(data_path=None, create_examples=True):
     Set up the AI archives data directory structure
 
     Args:
-        data_path: Path to the data directory. If None, uses ./data/
+        data_path: Path to the data directory. If None, uses ./archives/
         create_examples: Whether to create example archives
 
     Returns:
@@ -96,7 +96,7 @@ def setup_data_directory(data_path=None, create_examples=True):
     
     # Use default data directory if not specified
     if data_path is None:
-        data_path = os.path.join(repo_root, "data")
+        data_path = os.path.join(repo_root, "archives")
     
     data_path = os.path.abspath(data_path)
     print(f"Setting up data directory at: {data_path}")
@@ -124,7 +124,7 @@ def setup_data_directory(data_path=None, create_examples=True):
             os.makedirs(section_dir, exist_ok=True)
     
     # Copy the default custom rules to the data directory
-    source_rules_path = os.path.join(repo_root, "archives", "custom_rules", "custom-rules.md")
+    source_rules_path = os.path.join(repo_root, "custom-rules.md")
     target_rules_path = os.path.join(custom_rules_dir, "custom-rules.md")
     
     if os.path.exists(source_rules_path) and not os.path.exists(target_rules_path):

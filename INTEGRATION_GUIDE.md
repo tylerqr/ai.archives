@@ -26,31 +26,27 @@ Before installing the AI Archives system, ensure you have:
 The AI Archives system uses a single-repository architecture with a configurable data path:
 
 1. **Main Repository** (`ai.archives`): Contains the core system code, scripts, and utilities
-2. **Data Directory** (`data/` by default): Stores your project-specific archives, knowledge, and custom rules
+2. **Archives Directory** (`archives/` by default): Stores your project-specific archives, knowledge, and custom rules
 
-The data directory is gitignored, which means:
-- Your knowledge is not included in version control
-- You can update the system without affecting your archives
-- Your archives are safe during updates
+The archives directory contains your knowledge and custom rules, allowing you to:
+- Maintain your knowledge outside of version control if desired
+- Update the system without affecting your archives
+- Preserve your archives during system updates
 
 ### Directory Structure
 
 ```
 ai.archives/                # Main system repository
-├── archives/
-│   ├── core/               # Core functionality
-│   ├── api/                # External API
-│   ├── examples/           # Example content
-│   └── custom_rules/       # Default custom rules
-├── scripts/                # Utility scripts
-├── data/                   # User archives data (gitignored)
-│   └── archives/
-│       ├── projects/       # Project-specific knowledge
-│       │   ├── frontend/   # Frontend-specific archives
-│       │   ├── backend/    # Backend-specific archives
-│       │   └── shared/     # Shared knowledge
-│       └── custom_rules/   # User custom rules
-└── README.md
+├── archives/               # Archives storage
+│   ├── projects/           # Project-specific content
+│   ├── custom_rules/       # User custom rules
+│   └── archives/           # Archive data
+├── scripts/                # System scripts
+│   ├── archives_cli.py     # Command-line interface
+│   └── integrate_cursorrules.py # Rule integration tool
+├── archives_api.py         # External API for integration
+├── custom-rules.md         # Default custom rules template
+└── .cursorrules            # Generated cursorrules file
 ```
 
 ## Installation

@@ -12,20 +12,17 @@ The AI Archives system has a simple structure:
 
 ```
 ai.archives/
-├── archives/           # System code
-│   ├── core/           # Core functionality
-│   ├── api/            # External API
-│   ├── examples/       # Example content
+├── archives/           # Archive content
+│   ├── projects/       # Project-specific archives
+│   ├── archives/       # Archive data storage
 │   └── custom_rules/   # Default custom rules
 ├── scripts/            # Utility scripts
-├── data/               # User data (gitignored)
-│   └── archives/       # Archive content
-│       ├── projects/   # Project-specific archives
-│       └── custom_rules/ # User custom rules
+├── archives_api.py     # External API
+├── custom-rules.md     # Default custom rules
 └── README.md
 ```
 
-The `data/` directory is gitignored, meaning your archives content won't be included in updates to the system. This separation allows you to keep your project knowledge private while still benefiting from system updates.
+The `archives/` directory is used for storing your knowledge and custom rules. This organization allows you to keep your project knowledge private while still benefiting from system updates.
 
 ## ⚠️ IMPORTANT: Installation Location
 

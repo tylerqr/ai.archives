@@ -126,14 +126,14 @@ class ArchivesManager:
         self.config_path = os.path.join(self.repo_root, 'archives', 'core', 'config.json')
         self.config = self._load_config()
         
-        # Set up data directory path
+        # Set up data directory path - first check if data_path is specified
         if data_path is not None:
             self.data_path = data_path
         elif 'data_directory' in self.config.get('settings', {}):
             self.data_path = self.config['settings']['data_directory']
         else:
-            # If no data directory specified, use default ./data/ inside repo
-            self.data_path = os.path.join(self.repo_root, 'data')
+            # If no data directory specified, use default ./archives/ inside repo
+            self.data_path = os.path.join(self.repo_root, 'archives')
         
         # Ensure data path is absolute
         self.data_path = os.path.abspath(self.data_path)
@@ -141,13 +141,13 @@ class ArchivesManager:
         # Setup paths for main repository
         self.archives_dir = os.path.join(self.repo_root, 'archives')
         self.core_dir = os.path.join(self.archives_dir, 'core')
-        self.api_dir = os.path.join(self.archives_dir, 'api')
-        self.examples_dir = os.path.join(self.archives_dir, 'examples')
+        # API is now in the root directory
+        self.api_dir = self.repo_root
         
-        # Setup paths for data repository
+        # Setup paths for data repository - now using archives/archives
         self.data_archives_dir = os.path.join(self.data_path, 'archives')
-        self.projects_dir = os.path.join(self.data_archives_dir, 'projects')
-        self.custom_rules_dir = os.path.join(self.data_archives_dir, 'custom_rules')
+        self.projects_dir = os.path.join(self.data_path, 'projects')
+        self.custom_rules_dir = os.path.join(self.data_path, 'custom_rules')
         
         # Create directories if they don't exist
         self._ensure_directories_exist()

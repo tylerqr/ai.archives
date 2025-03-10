@@ -104,19 +104,20 @@ else
     echo -e "${GREEN}✓ Repository cloned successfully${NC}"
 fi
 
-# Configure data path
-echo ""
-echo -e "${BLUE}Archive Data Location${NC}"
-echo "Your archives data will be stored in a directory that is gitignored."
-echo "This allows you to update the AI Archives system without affecting your archived knowledge."
-echo ""
+# Prompt for data directory location
+echo "The AI Archives system needs a location to store your archives."
+echo "This should be a directory that won't be synced to version control."
+echo
 
-DEFAULT_DATA_PATH="$INSTALL_PATH/data"
+DEFAULT_DATA_PATH="$INSTALL_PATH/archives"
 read -p "Where would you like to store your archives data? [$DEFAULT_DATA_PATH]: " DATA_PATH
 
 if [ -z "$DATA_PATH" ]; then
     DATA_PATH="$DEFAULT_DATA_PATH"
 fi
+
+echo "Setting up archives at: $DATA_PATH"
+echo
 
 # Set up the AI Archives
 echo ""

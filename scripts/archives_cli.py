@@ -103,7 +103,8 @@ def main():
     parser = argparse.ArgumentParser(description="AI Archives CLI")
     
     # Global options
-    parser.add_argument("--data-path", help="Path to the data directory")
+    parser.add_argument("--data-path", help="Path to the archives data directory")
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
     
     subparsers = parser.add_subparsers(dest="command", help="Commands")
     
@@ -151,8 +152,17 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     
-    # Get archives manager with data path if specified
+    # Set up logging
+    setup_logging(args.debug)
+    
+    # Initialize archives manager
     manager = get_archives_manager(data_path=args.data_path)
+    
+    # Determine the default data path if not specified
+    if not args.data_path:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(script_dir)
+        args.data_path = os.path.join(repo_root, "archives")
     
     if args.command == "add":
         # Get content from file or argument

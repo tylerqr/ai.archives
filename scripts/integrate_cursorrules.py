@@ -130,7 +130,7 @@ def main():
     parser = argparse.ArgumentParser(description="Integrate AI Archives with Devin.cursorrules")
     
     parser.add_argument("--output", "-o", help="Path to write the combined cursorrules file")
-    parser.add_argument("--data-path", "-d", help="Path to the data directory")
+    parser.add_argument("--data-path", "-d", help="Path to the archives directory")
     
     args = parser.parse_args()
     
