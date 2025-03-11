@@ -15,7 +15,7 @@ typer==0.9.0
 Flask==2.3.3
 flask-cors==4.0.0
 
-# Optional dependencies
-redis==4.5.5  # For caching (optional)
-psycopg2-binary==2.9.6  # For PostgreSQL support (optional)
-elasticsearch==8.8.0  # For advanced search (optional) 
+# Note: The following optional dependencies can be installed if needed
+# redis==4.5.5  # For caching (optional)
+# psycopg2-binary==2.9.6  # For PostgreSQL support (optional)
+# elasticsearch==8.8.0  # For advanced search (optional) 

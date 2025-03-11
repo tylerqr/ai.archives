@@ -77,14 +77,32 @@ def score_document(query_tokens: List[str], content: str) -> Tuple[int, List[int
 
 def sanitize_content(content):
     """
-    Remove ANSI color codes and error messages from the content.
+    Sanitize and format content for the archives.
+    
+    This function:
+    1. Removes ANSI color codes and error messages
+    2. Handles escaped newlines and other escaped characters
+    3. Formats the content for readability
+    4. Fixes common issues with code examples
     
     Args:
         content: The content to sanitize
         
     Returns:
-        Sanitized content
+        Sanitized and formatted content
     """
+    # First, process any escaped characters (convert them to their actual representation)
+    # This fixes issues like "\n" appearing in the text instead of actual newlines
+    try:
+        # Try to detect if content has escaped characters (like \n) that need to be converted
+        if '\\n' in content or '\\t' in content or '\\r' in content:
+            # Use a safe eval approach to handle the string with escaped characters
+            import ast
+            content = ast.literal_eval(f'"""{content}"""')
+    except (SyntaxError, ValueError):
+        # If evaluation fails, keep the original content
+        pass
+    
     # Remove ANSI color codes
     sanitized = ANSI_COLOR_PATTERN.sub('', content)
     
@@ -100,6 +118,22 @@ def sanitize_content(content):
     
     # Fix multiple consecutive newlines that might appear after removing content
     sanitized = re.sub(r'\n{3,}', '\n\n', sanitized)
+    
+    # Fix markdown formatting issues
+    # Ensure proper spacing after headers
+    sanitized = re.sub(r'(#+)([^#\s])', r'\1 \2', sanitized)
+    
+    # Fix lists without spaces after bullet points
+    sanitized = re.sub(r'(\n\s*[-*])([^\s])', r'\1 \2', sanitized)
+    
+    # Ensure code blocks have newlines before and after them
+    sanitized = re.sub(r'([^\n])```', r'\1\n```', sanitized)
+    sanitized = re.sub(r'```([^\n])', r'```\n\1', sanitized)
+    
+    # Remove duplicate headers (sometimes an AI might repeat the title)
+    lines = sanitized.split('\n')
+    if len(lines) > 2 and lines[0].startswith('# ') and lines[-1].strip() == lines[0].strip():
+        sanitized = '\n'.join(lines[:-1])
     
     return sanitized
 
@@ -214,8 +248,13 @@ class ArchivesManager:
         Args:
             project: Project name (e.g., 'frontend', 'backend', 'shared')
             section: Section name (e.g., 'setup', 'errors', 'fixes')
-            content: Content to add
-            title: Optional title for the content
+            content: Content to add. Should be properly formatted markdown text.
+                     - Use actual newlines, not escaped newlines (\\n)
+                     - Use proper markdown headers (# Title, ## Subtitle)
+                     - Use proper bullet points with spacing (- Item, * Item)
+                     - Format code using markdown code blocks (```language...```)
+            title: Optional title for the content. If not provided, a title will be 
+                   generated based on project and section names.
             
         Returns:
             Path to the updated archive file

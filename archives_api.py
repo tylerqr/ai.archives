@@ -119,21 +119,61 @@ class ArchivesAPI:
         if not base_content:
             raise Exception("Failed to fetch base cursorrules file")
         
-        # Get custom rules
-        custom_rules = self.get_custom_rules()
-        
-        # Add a section for custom rules if it doesn't exist
-        if "# AI Archives - Custom Rules" not in base_content:
-            merged_content = base_content + "\n\n# AI Archives - Custom Rules\n\n"
+        # Get custom rules - ONLY from custom-rules.md
+        custom_rules_path = os.path.join(self.manager.repo_root, 'custom-rules.md')
+        if os.path.exists(custom_rules_path):
+            with open(custom_rules_path, 'r') as f:
+                custom_rules_content = f.read()
         else:
-            # Split at the custom rules section to preserve the base content
-            parts = base_content.split("# AI Archives - Custom Rules")
-            merged_content = parts[0] + "# AI Archives - Custom Rules\n\n"
+            custom_rules_content = ""
         
-        # Add each custom rule
-        for rule in custom_rules:
-            merged_content += f"## {rule['name']}\n\n"
-            merged_content += rule['content'] + "\n\n"
+        # Start with the custom rules section
+        merged_content = "# AI Archives - Custom Rules\n\n"
+        
+        # Add custom rules content directly
+        merged_content += custom_rules_content + "\n\n"
+        
+        # Add a note about the scratchpad.md file
+        merged_content += "# IMPORTANT: AI Scratchpad Location\n\n"
+        merged_content += "When working with this project, all planning, progress tracking, and lessons learned should be written to:\n\n"
+        merged_content += "```\n./ai.archives/scratchpad.md\n```\n\n"
+        merged_content += "DO NOT modify this .cursorrules file directly. Instead, use the scratchpad.md file for all dynamic content.\n\n"
+        
+        # Add separator between custom rules and base content
+        merged_content += "# Base CursorRules\n\n"
+        
+        # Modify base content to use separate files instead of editing .cursorrules
+        modified_base_content = base_content
+        
+        # Replace references to editing .cursorrules with scratchpad.md
+        modified_base_content = modified_base_content.replace(
+            "the current state of `Multi-Agent Scratchpad` section in the `.cursorrules` file", 
+            "the current state of the `scratchpad.md` file in the ai.archives directory"
+        )
+        
+        modified_base_content = modified_base_content.replace(
+            "You then need to actually do the changes to the file.", 
+            "You then need to actually do the changes to the `scratchpad.md` file."
+        )
+        
+        modified_base_content = modified_base_content.replace(
+            "also make incremental writes or modifications to the `Multi-Agent Scratchpad` section in the `.cursorrules` file", 
+            "also make incremental writes or modifications to the `scratchpad.md` file"
+        )
+        
+        modified_base_content = modified_base_content.replace(
+            "The `Multi-Agent Scratchpad` section in the `.cursorrules` file", 
+            "The `scratchpad.md` file"
+        )
+        
+        # Replace references to the Lessons section
+        modified_base_content = modified_base_content.replace(
+            "you should take note in the `Lessons` section in the `.cursorrules` file", 
+            "you should take note in the `Lessons` section of the `scratchpad.md` file in the ai.archives directory"
+        )
+        
+        # Add base content with modifications
+        merged_content += modified_base_content
         
         # Set default output path if not provided
         if output_path is None:
@@ -142,6 +182,39 @@ class ArchivesAPI:
         # Write combined file
         with open(output_path, 'w') as f:
             f.write(merged_content)
+        
+        # Create a combined scratchpad.md file if it doesn't exist
+        scratchpad_path = os.path.join(self.manager.repo_root, 'scratchpad.md')
+        if not os.path.exists(scratchpad_path):
+            with open(scratchpad_path, 'w') as f:
+                f.write("# Multi-Agent Scratchpad\n\n")
+                f.write("## Background and Motivation\n\n")
+                f.write("(Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)\n\n")
+                f.write("## Key Challenges and Analysis\n\n")
+                f.write("(Planner: Records of technical barriers, resource constraints, potential risks)\n\n")
+                f.write("## Verifiable Success Criteria\n\n")
+                f.write("(Planner: List measurable or verifiable goals to be achieved)\n\n")
+                f.write("## High-level Task Breakdown\n\n")
+                f.write("(Planner: List subtasks by phase, or break down into modules)\n\n")
+                f.write("## Current Status / Progress Tracking\n\n")
+                f.write("(Executor: Update completion status after each subtask. If needed, use bullet points or tables to show Done/In progress/Blocked status)\n\n")
+                f.write("## Next Steps and Action Items\n\n")
+                f.write("(Planner: Specific arrangements for the Executor)\n\n")
+                f.write("## Executor's Feedback or Assistance Requests\n\n")
+                f.write("(Executor: Write here when encountering blockers, questions, or need for more information during execution)\n\n")
+                f.write("# Lessons\n\n")
+                f.write("## User Specified Lessons\n\n")
+                f.write("- Add lessons here\n\n")
+                f.write("## Cursor learned\n\n")
+                f.write("- Add lessons here\n")
+        
+        # Remove the separate lessons.md file if it exists
+        lessons_path = os.path.join(self.manager.repo_root, 'lessons.md')
+        if os.path.exists(lessons_path):
+            try:
+                os.remove(lessons_path)
+            except:
+                pass
         
         return output_path
     

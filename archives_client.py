@@ -77,9 +77,16 @@ class ArchivesClient:
         Add content to archives
         
         Args:
-            project: Project name
-            section: Section name
-            content: Content to add
+            project: Project name (e.g., 'frontend', 'backend', 'shared')
+            section: Section name (e.g., 'setup', 'errors', 'fixes')
+            content: Content to add as properly formatted markdown text.
+                    IMPORTANT FORMATTING GUIDELINES:
+                    - Use actual newlines, not escaped newlines (\\n)
+                    - Use proper markdown headers (# Title, ## Subtitle)
+                    - Use proper bullet points with spacing (- Item, * Item)
+                    - Format code using markdown code blocks (```language...```)
+                    - Ensure proper spacing between elements
+                    - DO NOT send raw strings with escaped characters
             title: Optional entry title
             
         Returns:

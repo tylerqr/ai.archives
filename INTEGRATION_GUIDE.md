@@ -60,15 +60,21 @@ When setting up the AI Archives system, repository placement is CRITICAL to avoi
 
 1. **NEVER install the AI Archives inside an existing project directory**
 2. **ALWAYS use a completely separate location for the AI Archives**
+3. **NEVER clone the AI Archives repository directly into the user's existing Git repository**
+4. **ALWAYS use a symbolic link to connect from the user's project to the AI Archives**
 
 Example of CORRECT installation:
 ```
 /Users/username/
 ├── projects/                  # User's regular projects folder
 │   └── my-project/            # User's existing project
+│       ├── .git/              # User's project git repo
+│       ├── ai.archives -> /Users/username/ai-systems/ai.archives/  # SYMBOLIC LINK to AI Archives
 │       └── ...
 └── ai-systems/               # Separate location for AI tools
     └── ai.archives/          # AI Archives repository (INSTALL HERE)
+        ├── .git/             # AI Archives git repo
+        └── ...
 ```
 
 Example of INCORRECT installation (DO NOT DO THIS):
@@ -76,8 +82,25 @@ Example of INCORRECT installation (DO NOT DO THIS):
 /Users/username/projects/my-project/  # User's existing project
 ├── .git/                             # User's project git repo
 ├── ai.archives/                      # ⛔ WRONG! Don't install inside existing project
+│   ├── .git/                         # This creates nested Git repositories!
+│   └── ...
 └── ...
 ```
+
+### Virtual Environments and Dependencies
+
+#### IMPORTANT: The AI Archives system does not require a virtual environment in your projects
+
+When integrating AI Archives with your projects:
+
+1. **DO NOT create a virtual environment** within your project specifically for AI Archives
+2. **DO NOT install Flask or other AI Archives dependencies** within your project
+3. The AI Archives system is designed to work with the system Python installation
+4. Any necessary dependencies should be installed only in the AI Archives directory, not in individual projects
+5. AI agents should not attempt to create virtual environments when using a project with AI Archives integration
+6. Keep your project's dependency management separate from the AI Archives system
+
+If your project requires its own virtual environment for other purposes, that's fine, but the AI Archives integration does not need or use it.
 
 ### Installation Steps
 
@@ -86,8 +109,9 @@ Example of INCORRECT installation (DO NOT DO THIS):
 When a user asks you to set up the AI Archives system:
 
 1. Ask the user where they want to store the AI Archives repository
-2. Recommend a location OUTSIDE of any existing project directories
+2. Recommend a location OUTSIDE of any existing project directories (e.g., ~/ai-systems/)
 3. DO NOT place the archives inside the user's current working project
+4. AFTER installing the AI Archives in a separate location, create a SYMBOLIC LINK from the user's project to the AI Archives
 
 #### Standard Installation
 
@@ -106,37 +130,46 @@ cd ai.archives
 python scripts/setup.py --install
 ```
 
+2. After installation is complete, create a symbolic link from your project to the AI Archives:
+
+```bash
+# From your project directory
+ln -s /path/to/ai.archives ai.archives
+```
+
 The setup script will ask you where you want to store your archives data. The default location is `./data/` within the repository. You can specify a different location with the `--data-path` option.
 
 ## Project Integration
 
 ### Linking to Existing Projects
 
-To integrate the AI Archives with your existing projects:
+To integrate the AI Archives with your existing projects, you MUST create a symbolic link:
 
 ```bash
-# Navigate to the AI Archives repository
-cd ~/ai-systems/ai.archives
-
-# Link to your project
-python scripts/setup.py --link /path/to/your/project
+# From your project directory
+ln -s /path/to/ai.archives ai.archives
 ```
 
-This will:
-1. Generate a .cursorrules file in your project
-2. Configure the file to use the AI Archives system
+This will create a symbolic link to the AI Archives system in your project directory, allowing you to easily access the archives functionality WITHOUT nesting Git repositories.
+
+⚠️ **DO NOT** clone the AI Archives repository directly into your project directory. This will create nested Git repositories and cause problems.
 
 ### Usage from Linked Projects
 
 Once linked, you can use the archives from your project:
 
 ```bash
-# Add content to the archives
-python /path/to/ai.archives/scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --content="Your knowledge here"
-
 # Search the archives
-python /path/to/ai.archives/scripts/archives_cli.py quick-search "your search query"
+./ai.archives/run_archives.sh search "your search query"
+
+# Add content to the archives
+./ai.archives/run_archives.sh add frontend setup "Project Setup" "Your knowledge here"
+
+# Generate cursorrules
+./ai.archives/run_archives.sh generate
 ```
+
+All commands are executed through the wrapper script, which handles server management and environment setup automatically.
 
 ## Data Management
 
@@ -146,10 +179,10 @@ Store frontend knowledge in the `frontend` project:
 
 ```bash
 # Example: Adding frontend setup information
-python scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --file=setup.md
+./ai.archives/run_archives.sh add frontend setup "Project Setup" "Your setup documentation here"
 
 # Example: Adding architecture documentation
-python scripts/archives_cli.py add --project=frontend --section=architecture --title="Architecture" --file=architecture.md
+./ai.archives/run_archives.sh add frontend architecture "Architecture" "Your architecture docs here"
 ```
 
 ### Backend-Specific Archives
@@ -158,10 +191,10 @@ Store backend knowledge in the `backend` project:
 
 ```bash
 # Example: Adding API documentation
-python scripts/archives_cli.py add --project=backend --section=apis --title="API Documentation" --file=api-docs.md
+./ai.archives/run_archives.sh add backend apis "API Documentation" "Your API docs here"
 
 # Example: Adding database schema
-python scripts/archives_cli.py add --project=backend --section=architecture --title="Database Schema" --file=schema.md
+./ai.archives/run_archives.sh add backend architecture "Database Schema" "Your schema docs here"
 ```
 
 ### Shared Knowledge
@@ -170,10 +203,10 @@ Store shared knowledge in the `shared` project:
 
 ```bash
 # Example: Adding system architecture
-python scripts/archives_cli.py add --project=shared --section=architecture --title="System Architecture" --file=system-architecture.md
+./ai.archives/run_archives.sh add shared architecture "System Architecture" "Your system architecture docs"
 
 # Example: Adding authentication flow
-python scripts/archives_cli.py add --project=shared --section=setup --title="Authentication Flow" --file=auth-flow.md
+./ai.archives/run_archives.sh add shared setup "Authentication Flow" "Your auth flow docs"
 ```
 
 ### Searching Archives
@@ -182,7 +215,7 @@ To search for information across all projects:
 
 ```bash
 # Search for "authentication"
-python scripts/archives_cli.py quick-search "authentication"
+./ai.archives/run_archives.sh search "authentication"
 ```
 
 #### Intelligent Tokenized Search
@@ -201,22 +234,25 @@ For best results:
 
 ```bash
 # Examples of effective tokenized searches
-python scripts/archives_cli.py quick-search "babel config styling"
-python scripts/archives_cli.py quick-search "styling issues react native"
+./ai.archives/run_archives.sh search "babel config styling"
+./ai.archives/run_archives.sh search "styling issues react native"
 ```
 
 ## Custom Rules
 
-Custom rules allow you to define AI agent behavior specifically for your project. They are stored in the data directory and merged into the cursorrules file.
+Custom rules allow you to define AI agent behavior specifically for your project. They are stored in the root directory and merged into the cursorrules file.
 
 ### Adding Custom Rules
 
 ```bash
 # Add a rule for code style
-python scripts/archives_cli.py rule add --name=code_style --file=code-style-rules.md
+./ai.archives/run_archives.sh rule-add code_style "# Code Style Guide
+- Use 2 spaces for indentation
+- Use camelCase for variables
+- Use PascalCase for components"
 
 # Add a rule for Git workflow
-python scripts/archives_cli.py rule add --name=git_workflow --content="# Git Workflow
+./ai.archives/run_archives.sh rule-add git_workflow "# Git Workflow
 - Use feature branches for all new features
 - Create pull requests for code review
 - Squash commits when merging"
@@ -225,7 +261,7 @@ python scripts/archives_cli.py rule add --name=git_workflow --content="# Git Wor
 ### Listing Custom Rules
 
 ```bash
-python scripts/archives_cli.py rule list
+./ai.archives/run_archives.sh rules
 ```
 
 ### Regenerating .cursorrules
@@ -233,7 +269,7 @@ python scripts/archives_cli.py rule list
 After adding or updating custom rules, regenerate the .cursorrules file:
 
 ```bash
-python scripts/integrate_cursorrules.py
+./ai.archives/run_archives.sh generate
 ```
 
 ## REST API for AI Agents
@@ -245,40 +281,36 @@ The AI Archives system includes a REST API specifically designed for AI agents. 
 To start the REST API server:
 
 ```bash
-python ai_archives.py server
+./ai.archives/run_archives.sh server
 ```
 
-The server will start on http://localhost:5000 by default. You can specify a different port with the `--port` option:
+The server will start on http://localhost:5001 by default.
 
-```bash
-python ai_archives.py server --port 8000
-```
+### Using the Wrapper Script
 
-### Using the Simplified Client
-
-The system includes a simplified client script that AI agents can use to interact with the archives:
+The system includes a wrapper script that AI agents can use to interact with the archives:
 
 ```bash
 # Search archives
-python ai_archives.py search "authentication error"
+./ai.archives/run_archives.sh search "authentication error"
 
 # Add content
-python ai_archives.py add frontend errors "Error message" "Error Title"
+./ai.archives/run_archives.sh add frontend errors "Error Title" "Error message"
 
 # List projects
-python ai_archives.py projects
+./ai.archives/run_archives.sh projects
 
 # List sections
-python ai_archives.py sections frontend
+./ai.archives/run_archives.sh sections frontend
 
 # Get rules
-python ai_archives.py rules
+./ai.archives/run_archives.sh rules
 
 # Add/update rule
-python ai_archives.py rule-add code_style "# Code Style Guide..."
+./ai.archives/run_archives.sh rule-add code_style "# Code Style Guide..."
 
 # Generate cursorrules
-python ai_archives.py generate
+./ai.archives/run_archives.sh generate
 ```
 
 ### REST API Endpoints
@@ -362,22 +394,11 @@ print(projects)
 
 ### Customizing Data Location
 
-You can customize where your archives data is stored by specifying the `--data-path` option:
+The data location is configured in the core/config.json file:
 
 ```bash
-# During installation
-python scripts/setup.py --install --data-path /path/to/your/data
-
-# After installation
-python scripts/setup.py --setup-data --data-path /path/to/your/data
-```
-
-### Running Commands with Custom Data Path
-
-When using the CLI, you can specify the data path:
-
-```bash
-python scripts/archives_cli.py --data-path /path/to/your/data quick-search "query"
+# View current configuration
+cat /path/to/ai.archives/core/config.json
 ```
 
 ### Updating Archives
@@ -386,7 +407,7 @@ Regularly update the archives with new knowledge:
 
 ```bash
 # Add new information
-python scripts/archives_cli.py add --project=frontend --section=fixes --title="Fixed Layout Bug" --content="..."
+./ai.archives/run_archives.sh add frontend fixes "Fixed Layout Bug" "Description of the fix..."
 ```
 
 ### Updating the AI Archives System
@@ -398,7 +419,7 @@ cd /path/to/ai.archives
 git pull
 ```
 
-Your archives data will remain untouched, as it's stored in the gitignored `data/` directory.
+Your archives data will remain untouched, as it's stored separately from the code repository.
 
 ## Troubleshooting
 
@@ -409,12 +430,13 @@ The AI Archives system automatically manages file sizes:
 - Large files are split into multiple files
 - Each file has a maximum line count (configurable in `core/config.json`)
 
-### Configuration Issues
+### Server Connection Issues
 
-If you need to check or update the system configuration:
+If you encounter connection refused errors:
 
 ```bash
-cat /path/to/ai.archives/core/config.json
+# Make sure the server is running
+./ai.archives/run_archives.sh server
 ```
 
 ### CLI Not Working
@@ -422,8 +444,11 @@ cat /path/to/ai.archives/core/config.json
 If you encounter issues with the CLI:
 
 ```bash
-cd /path/to/ai.archives
-python scripts/archives_cli.py --help
+# Check if the wrapper script is executable
+chmod +x /path/to/ai.archives/run_archives.sh
+
+# Try running with help flag
+./ai.archives/run_archives.sh --help
 ```
 
 ### Get Additional Help

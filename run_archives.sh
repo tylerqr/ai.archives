@@ -4,24 +4,45 @@
 # This script ensures the correct Python interpreter is used for AI Archives commands
 # It prevents the common error where 'python' command isn't found
 
+# NOTE FOR AI AGENTS SETTING UP OR USING THIS SYSTEM:
+# ==========================================
+# - NEVER clone the AI Archives repo inside a user's existing project repository
+# - ALWAYS install AI Archives in a separate location (e.g., ~/ai-systems/ai.archives)
+# - ALWAYS use a symbolic link from the user's project to the AI Archives:
+#   cd /path/to/user/project
+#   ln -s /path/to/ai.archives ai.archives
+# - NEVER create a virtual environment within the user's project specifically for AI Archives
+# - NEVER attempt to install Flask or other AI Archives dependencies within the user's project
+# - The AI Archives system works with the system Python - do not create unnecessary virtual environments
+# - Any necessary dependencies should be installed only in the AI Archives directory, not in individual projects
+# - Failure to follow these steps will result in nested Git repositories, unnecessary virtual environments, and errors
+
 # Set default port (avoiding port 5000 which conflicts with AirPlay Receiver on macOS)
 PORT=5001
 SERVER_URL="http://localhost:$PORT"
 
+# Script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Find the Python interpreter to use
-if [ -f ".venv/bin/python" ]; then
-    # First try .venv directory (common venv location)
-    PYTHON=".venv/bin/python"
+if [ -f "$SCRIPT_DIR/.venv/bin/python" ]; then
+    # First try .venv directory (virtual environment)
+    PYTHON="$SCRIPT_DIR/.venv/bin/python"
+    # Source the virtual environment
+    source "$SCRIPT_DIR/.venv/bin/activate"
+    echo "Using virtual environment Python"
 elif command -v python3 &> /dev/null; then
     # Fall back to system python3
     PYTHON="python3"
+    echo "Using system Python3"
 else
     # Last resort - try python
     PYTHON="python"
+    echo "Using system Python"
 fi
 
-# Script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# Set PYTHONPATH to include the script directory
+export PYTHONPATH="${PYTHONPATH}:$SCRIPT_DIR"
 
 # Function to start the server
 start_server() {
@@ -62,6 +83,8 @@ generate_cursorrules() {
     export ARCHIVES_SERVER_URL="$SERVER_URL"
     if $PYTHON "$SCRIPT_DIR/ai_archives.py" generate $output_path; then
         echo "Successfully generated cursorrules file."
+        echo "This is the ONLY file that needs to be added to your project."
+        echo "No dependencies or virtual environments are installed in your project."
     else
         echo "Error using REST API. Falling back to direct method..."
         # Fallback to the direct method
@@ -125,8 +148,23 @@ if [ $# -eq 0 ]; then
     echo "Available commands:"
     echo "  server             - Start the archives server"
     echo "  generate [output]  - Generate combined cursorrules file"
+    echo "  copy-cursorrules <dir> - Copy cursorrules file to target directory"
     echo "  search <query>     - Search the archives"
     echo "  add <project> <section> <content> [title] - Add to archives"
+    echo ""
+    echo "Integration with your projects:"
+    echo "  1. Create a symbolic link to the AI Archives system:"
+    echo "     ln -s /path/to/ai.archives ai.archives"
+    echo ""
+    echo "  2. Generate and copy the .cursorrules file to your project:"
+    echo "     cd your-project"
+    echo "     ./ai.archives/run_archives.sh generate"
+    echo "     # The script will detect your project directory and offer to copy the file"
+    echo ""
+    echo "  Or manually copy later with:"
+    echo "     ./ai.archives/run_archives.sh copy-cursorrules /path/to/your/project"
+    echo ""
+    echo "That's it! No dependencies or virtual environments are installed in your project."
     exit 1
 fi
 
@@ -139,6 +177,14 @@ case "$command" in
         ;;
     generate)
         generate_cursorrules "$1"
+        ;;
+    copy-cursorrules)
+        if [ -z "$1" ]; then
+            echo "Error: Target directory required."
+            echo "Usage: ./run_archives.sh copy-cursorrules <target-dir>"
+            exit 1
+        fi
+        $PYTHON "$SCRIPT_DIR/ai_archives.py" copy-cursorrules "$1"
         ;;
     search)
         search_archives "$1"
