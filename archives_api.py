@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 """
-AI Archives API
+AI Archives API Module
 
 This module provides a simple API for integrating the AI Archives with other projects.
-It includes functions for adding to archives, searching archives, and managing custom rules.
+It handles the common operations like searching, adding to archives, etc.
 """
 
 import os
 import sys
 import json
-from typing import List, Dict, Any, Optional
+import logging
+import tempfile
+from typing import Dict, List, Any, Optional, Tuple, Union
+from datetime import datetime
 
-# Add parent directory to path so we can import the archives module
-script_dir = os.path.dirname(os.path.abspath(__file__))
-archives_dir = os.path.dirname(script_dir)
-repo_root = os.path.dirname(archives_dir)
-sys.path.append(repo_root)
+# Add parent directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
-from archives.core.archives_manager import get_archives_manager
-from archives.core.github_integration import get_github_integration
+# Try to import from core directly
+try:
+    from core.archives_manager import get_archives_manager
+    from core.github_integration import get_github_integration
+except ImportError:
+    # Fall back to old import path for backward compatibility
+    from archives.core.archives_manager import get_archives_manager
+    from archives.core.github_integration import get_github_integration
 
 
 class ArchivesAPI:

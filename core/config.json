@@ -23,7 +23,8 @@
       "base_repo": "grapeot/devin.cursorrules",
       "base_branch": "multi-agent",
       "base_file": ".cursorrules",
-      "custom_rules_dir": "archives/custom_rules"
-    }
+      "custom_rules_dir": ""
+    },
+    "data_directory": "/Users/tylerruff/code/ai.archives"
   }
-} 
+}

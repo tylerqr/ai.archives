@@ -14,15 +14,17 @@ The AI Archives system has a simple structure:
 ai.archives/
 ├── archives/           # Archive content
 │   ├── projects/       # Project-specific archives
-│   ├── archives/       # Archive data storage
-│   └── custom_rules/   # Default custom rules
+│   └── archives/       # Archive data storage
 ├── scripts/            # Utility scripts
 ├── archives_api.py     # External API
 ├── custom-rules.md     # Default custom rules
+├── server.py           # REST API server
+├── archives_client.py  # REST API client library
+├── ai_archives.py      # Simplified CLI wrapper
 └── README.md
 ```
 
-The `archives/` directory is used for storing your knowledge and custom rules. This organization allows you to keep your project knowledge private while still benefiting from system updates.
+The `archives/` directory is used for storing your knowledge. This organization allows you to keep your project knowledge private while still benefiting from system updates.
 
 ## ⚠️ IMPORTANT: Installation Location
 
@@ -57,6 +59,7 @@ Example of INCORRECT installation (DO NOT DO THIS):
 - **Custom Rules Management**: Maintains custom rules separate from the base cursorrules file
 - **Intelligent Search**: Uses tokenized search for better results with multi-word queries
 - **Searchable Archives**: Quickly find relevant information in your archives
+- **REST API Access**: Simple HTTP API for AI agents to interact with archives without environment issues
 
 ## Quick Start
 
@@ -101,6 +104,33 @@ python scripts/archives_cli.py rule add --name=code_style --content="# Code Styl
 python scripts/integrate_cursorrules.py
 ```
 
+### Simplified API for AI Agents
+
+For AI agents, we provide a simplified REST API that eliminates environment issues:
+
+```bash
+# Start the REST API server (only needs to be done once)
+python ai_archives.py server
+
+# Search archives (much simpler than the CLI command)
+python ai_archives.py search "authentication error"
+
+# Add content to archives
+python ai_archives.py add frontend errors "Error message" "Error Title"
+
+# List projects and sections
+python ai_archives.py projects
+python ai_archives.py sections frontend
+
+# Update custom rules
+python ai_archives.py rule-add code_style "# Code Style Guide..."
+
+# Generate cursorrules file
+python ai_archives.py generate
+```
+
+The REST API server runs on http://localhost:5000 and provides an HTTP interface that avoids Python environment issues.
+
 ### Integrating with Your Projects
 
 To use the archives with your existing projects:
@@ -116,6 +146,9 @@ To use the archives with your existing projects:
    ```bash
    # In your project directory
    python /path/to/ai.archives/scripts/archives_cli.py quick-search "query"
+   
+   # OR, using the simplified API (recommended for AI agents)
+   python /path/to/ai.archives/ai_archives.py search "query"
    ```
 
 ## Detailed Setup Options
@@ -141,6 +174,7 @@ For detailed instructions on using the AI Archives system, please see the [Integ
 - Setting up the archives in your projects
 - Custom rules management
 - Advanced configuration options
+- REST API for AI agents
 - Troubleshooting common issues
 
 ## Command-Line Interface
@@ -160,12 +194,30 @@ Available commands:
 - `rule`: Manage custom rules
 - `generate`: Generate combined cursorrules file
 
+## REST API
+
+The system includes a REST API for simplified access:
+
+```bash
+# Start the REST API server
+python ai_archives.py server
+```
+
+Key endpoints:
+- `GET /search?query=<query>`: Search archives
+- `GET /quick-search?query=<query>&format=text`: AI-optimized search
+- `POST /add`: Add content to archives
+- `GET /rules`: List custom rules
+- `POST /rules`: Add/update a rule
+- `POST /generate-cursorrules`: Generate cursorrules file
+
 ## How it Works
 
 1. **Knowledge Storage**: Content is stored in Markdown files organized by project and section
 2. **Custom Rules**: Rules are stored in separate files and merged into the cursorrules file
 3. **AI Integration**: The generated .cursorrules file instructs AI agents how to use the archives
 4. **Search**: The search functionality finds relevant information across all archives
+5. **REST API**: Provides a simplified interface for AI agents that avoids environment issues
 
 ## Contributing
 

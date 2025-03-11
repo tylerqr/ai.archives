@@ -10,7 +10,9 @@ env/
 ENV/
 
 # AI Archives data directory (user-specific content)
-/data/
+./archives
+/archives
+.cursorrules
 
 # Mac specific files
 .DS_Store

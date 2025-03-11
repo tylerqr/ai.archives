@@ -7,16 +7,35 @@ Command-line interface for interacting with the AI Archives system.
 
 import os
 import sys
+import re
 import argparse
+import json
 import textwrap
+import logging
 from pathlib import Path
+from typing import List, Dict, Any, Optional
+from datetime import datetime
 
-# Add parent directory to path so we can import the archives module
+# Add parent directory to path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 repo_root = os.path.dirname(script_dir)
 sys.path.append(repo_root)
 
-from archives.core.archives_manager import get_archives_manager
+# Try to import from core directly
+try:
+    from core.archives_manager import get_archives_manager
+except ImportError:
+    # Fall back to old import path for backward compatibility
+    from archives.core.archives_manager import get_archives_manager
+
+
+def setup_logging(debug=False):
+    """Setup logging configuration"""
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
 
 def format_results(results):

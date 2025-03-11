@@ -164,60 +164,847 @@ The executor has access to three tools: invoking 3rd party LLM, invoking web bro
 
 ## custom-rules
 
-# AI Archives System Integration Rules
+# AI ARCHIVES USAGE RULES
 
-These rules govern how AI agents should interact with the AI Archives system, search for information, update archives, and handle custom rules.
+## Core Operations
 
-## IMMEDIATE ACTION RULES FOR AI AGENTS
+- **NEVER USE FILE TOOLS FOR ARCHIVES**: Always use the wrapper script.
+- **ALWAYS USE WRAPPER SCRIPT**: `./ai.archives/run_archives.sh` for all operations.
+- **NEVER EDIT .cursorrules DIRECTLY**: This file is auto-generated.
 
-- **ALWAYS CHECK ARCHIVES FIRST**: When you see the user mention "archives", "check archives", or "search archives", IMMEDIATELY use the archives search functionality as your first action.
-- **USE THE OPTIMAL SEARCH COMMAND**: For best results, use: `python scripts/archives_cli.py quick-search "query"` - this provides formatted results optimized for AI agents.
-- **DO NOT WASTE STEPS**: If the user is looking for information that might be in the archives, go directly to the archives search rather than exploring project directories.
+## Quick Reference
 
 ```bash
-# OPTIMAL WAY to search archives (DO THIS FIRST)
-python scripts/archives_cli.py quick-search "your search term"
+./ai.archives/run_archives.sh search "query"    # Search archives
+./ai.archives/run_archives.sh add project section "Title" "Content"   # Add entry
+./ai.archives/run_archives.sh server            # Start server if needed
 ```
 
-## Archives Search and Retrieval
+## Key Guidelines
 
-- **Proactive Search**: Before attempting to solve complex problems, search the archives for relevant information.
-- **User-Triggered Search**: When the user says "search archives" or "check archives" for a topic, immediately use the archives search functionality.
-- **Cross-Project Knowledge**: When working on tasks that may involve both frontend and backend, search both project archives.
+- **SEARCH FIRST**: When user mentions "archives" or "check archives", search immediately.
+- **ADD ONLY WHEN REQUESTED**: Only add content when user explicitly requests it.
+- **CATEGORIZE PROPERLY**: Use appropriate project (frontend/backend/shared) and section.
+- **SERVER ISSUES**: If connection refused, start the server with `./ai.archives/run_archives.sh server`.
+
+## Updating Rules
+
+- **EDIT CUSTOM RULES**: When user says "add to the rules" or "update the rules", edit `/ai.archives/custom-rules.md`.
+- **REGENERATE CURSORRULES**: After editing, run `./ai.archives/run_archives.sh generate` to create a new .cursorrules file.
+- **COPY TO REPO**: Copy the new .cursorrules file to the user's project repo to replace the old one.
+
+
+## API_README
+
+# AI Archives REST API
+
+A fast, simple REST API for AI agents to interact with the AI Archives system. This solution eliminates the Python environment hassles, reduces tool call overhead, and makes it easy for AI agents to search, read, and update archives.
+
+## Features
+
+- **Simple HTTP API**: No environment activation or complex command line arguments needed
+- **AI-Optimized Responses**: Formatted specifically for AI agent consumption
+- **Fast Search**: Quick access to archives content
+- **Custom Rules Management**: Easy updating and regeneration of custom rules
+- **Multiple Access Methods**: REST API, Python client library, or simplified command-line wrapper
+
+## Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-# Quick search examples
+pip install -r requirements-api.txt
+```
+
+### 2. Start the Server
+
+```bash
+python ai_archives.py server
+```
+
+The server will start on http://localhost:5000 by default.
+
+### 3. Use the API
+
+You can interact with the API in three ways:
+
+#### A. Direct HTTP Requests
+
+```bash
+# Search archives
+curl "http://localhost:5000/search?query=authentication"
+
+# Add to archives
+curl -X POST http://localhost:5000/add \
+  -H "Content-Type: application/json" \
+  -d '{"project":"frontend", "section":"errors", "content":"Error message", "title":"Error Title"}'
+```
+
+#### B. Python Client Library
+
+```python
+from archives_client import ArchivesClient
+
+client = ArchivesClient()
+
+# Search archives
+results = client.quick_search("authentication", format_type="text")
+print(results)
+
+# Add to archives
+client.add("frontend", "errors", "Error message", "Error Title")
+```
+
+#### C. Command-line Wrapper
+
+```bash
+# Search archives
+python ai_archives.py search "authentication"
+
+# Add to archives
+python ai_archives.py add frontend errors "Error message" "Error Title"
+
+# List all projects
+python ai_archives.py projects
+
+# Update a rule
+python ai_archives.py rule-add custom_rule "# Custom Rule Content"
+
+# Generate cursorrules
+python ai_archives.py generate
+```
+
+## API Endpoints
+
+### Search
+
+- `GET /search?query=<query>&project=<project>`
+- `GET /quick-search?query=<query>&project=<project>&format=<format>`
+
+### Add Content
+
+- `POST /add` (JSON body: project, section, content, title)
+
+### Rules Management
+
+- `GET /rules`
+- `POST /rules` (JSON body: name, content)
+- `POST /generate-cursorrules` (JSON body: output_path)
+
+### Discovery
+
+- `GET /list-projects`
+- `GET /list-sections?project=<project>`
+
+## For AI Agents
+
+When using this system from an AI agent, follow these simple steps:
+
+1. First, start the server (only needed once):
+   ```bash
+   python ai_archives.py server
+   ```
+
+2. Then, use the client wrapper for all operations:
+   ```bash
+   # For searching
+   python ai_archives.py search "your search query"
+   
+   # For adding content (only when explicitly requested by user)
+   python ai_archives.py add frontend errors "Error message" "Error Title"
+   ```
+
+This approach is much simpler and faster than the previous method using the Python virtual environment. 
+
+## app_testing
+
+# App Testing Instructions
+
+- **USE YARN COMMANDS FOR TESTING**: Always use `yarn ios` or `yarn android` when building the app for testing on respective platforms.
+- **DO NOT USE EXPO START DIRECTLY**: Prefer using the yarn commands as they ensure proper setup and configuration.
+- **CHECK PLATFORM COMPATIBILITY**: Remember that some components may behave differently on iOS vs Android.
+
+```bash
+# Build and run on iOS
+yarn ios
+
+# Build and run on Android
+yarn android
+
+# Run on web platform
+yarn web
+```
+
+
+## README
+
+# AI Archives System
+
+Give long-lived memories and searchable archives to LLMs using Cursor.
+
+## Overview
+
+The AI Archives system is an extension of the [multi-agent cursorrules system](https://github.com/grapeot/devin.cursorrules/tree/multi-agent). It provides a way for AI agents to maintain knowledge across sessions, learn from past experiences, and effectively work across multiple projects.
+
+## Repository Structure
+
+The AI Archives system has a simple structure:
+
+```
+ai.archives/
+├── archives/           # Archive content
+│   ├── projects/       # Project-specific archives
+│   └── archives/       # Archive data storage
+├── scripts/            # Utility scripts
+├── archives_api.py     # External API
+├── custom-rules.md     # Default custom rules
+├── server.py           # REST API server
+├── archives_client.py  # REST API client library
+├── ai_archives.py      # Simplified CLI wrapper
+└── README.md
+```
+
+The `archives/` directory is used for storing your knowledge. This organization allows you to keep your project knowledge private while still benefiting from system updates.
+
+## ⚠️ IMPORTANT: Installation Location
+
+ATTENTION AI AGENTS: When setting up the AI Archives system for a user, follow these strict rules:
+
+1. **NEVER install the AI Archives inside an existing Git project directory**
+2. **ALWAYS install into a separate, standalone location outside of the user's current project**
+3. **Directory placement must prevent nested Git repositories (which causes confusion and Git conflicts)**
+
+Example of CORRECT installation:
+```
+/Users/username/
+├── projects/                  # User's regular projects folder
+│   └── my-project/            # User's existing project (where they might be when they ask for integration)
+│       └── ...
+└── ai-systems/               # Separate location for AI tools
+    └── ai.archives/          # AI Archives repository (INSTALL HERE)
+```
+
+Example of INCORRECT installation (DO NOT DO THIS):
+```
+/Users/username/projects/my-project/  # User's existing project
+├── .git/                             # User's project git repo
+├── ai.archives/                      # WRONG! Don't install inside existing project
+└── ...
+```
+
+## Key Features
+
+- **Persistent Knowledge Base**: Preserves insights, error solutions, and project knowledge across sessions
+- **Multi-Project Support**: Enables AI agents to share knowledge between frontend and backend projects
+- **Custom Rules Management**: Maintains custom rules separate from the base cursorrules file
+- **Intelligent Search**: Uses tokenized search for better results with multi-word queries
+- **Searchable Archives**: Quickly find relevant information in your archives
+- **REST API Access**: Simple HTTP API for AI agents to interact with archives without environment issues
+
+## Quick Start
+
+### Installation
+
+To install the AI Archives system, run:
+
+```bash
+# Clone the repository outside of any existing project
+git clone https://github.com/tylerqr/ai.archives.git ~/ai-systems/ai.archives
+cd ~/ai-systems/ai.archives
+
+# Set up the system with the setup script
+python scripts/setup.py --install
+```
+
+The setup script will:
+
+1. Ask where you want to store your archives data (default: ./data/)
+2. Create the necessary directory structure
+3. Initialize the archives with sample content
+4. Generate a .cursorrules file
+
+### Usage
+
+Once installed, you can interact with the archives using the CLI:
+
+```bash
+# Add content to the archives
+python scripts/archives_cli.py add --project=frontend --section=errors --title="JWT Authentication Error" --content="Detailed description of the issue..."
+
+# Search the archives
 python scripts/archives_cli.py quick-search "authentication error"
-```
 
-## Archives Update Protocol
+# List available archives
+python scripts/archives_cli.py list
 
-- **User Permission Required**: NEVER add to archives automatically. Only add content when explicitly requested by the user.
-- **Update Triggers**: When the user says phrases like "add this to archives", "update archives with", or "document this in archives", then update archives.
-- **Proper Categorization**: Categorize new information by project (frontend, backend, shared) and section (setup, architecture, errors, fixes, apis, etc.)
+# Add custom rules
+python scripts/archives_cli.py rule add --name=code_style --content="# Code Style Rules\n\nUse 2 spaces for indentation..."
 
-```bash
-# Example archive update command
-python scripts/archives_cli.py add --project=frontend --section=errors --title="Title" --content="Content"
-```
-
-## Custom Rules Management
-
-- **Rule Update Triggers**: When the user says "update the rules to...", "add rule for...", update the CUSTOM RULES, not the .cursorrules file.
-- **NEVER Edit .cursorrules Directly**: The .cursorrules file is generated by combining base rules with custom rules. Never edit it directly.
-
-```bash
-# Regenerate the cursorrules file
+# Generate .cursorrules file (after updating custom rules)
 python scripts/integrate_cursorrules.py
 ```
 
+### Simplified API for AI Agents
 
-## explicit_permission
+For AI agents, we provide a simplified REST API that eliminates environment issues:
 
-# Explicit Permission Rules
+```bash
+# Start the REST API server (only needs to be done once)
+python ai_archives.py server
 
-- **DO NOT ADD TO ARCHIVES WITHOUT EXPLICIT PERMISSION**: Never add any content to the archives unless the user explicitly says to add it.
-- **EXPLICIT PERMISSION PHRASES**: Only add content when the user clearly says phrases like \"add this to archives\", \"save this in archives\", or \"document this in archives\".
-- **WHEN IN DOUBT, ASK**: If unsure whether the user wants something added to archives, ask for confirmation first rather than adding automatically.
+# Search archives (much simpler than the CLI command)
+python ai_archives.py search "authentication error"
 
+# Add content to archives
+python ai_archives.py add frontend errors "Error message" "Error Title"
+
+# List projects and sections
+python ai_archives.py projects
+python ai_archives.py sections frontend
+
+# Update custom rules
+python ai_archives.py rule-add code_style "# Code Style Guide..."
+
+# Generate cursorrules file
+python ai_archives.py generate
+```
+
+The REST API server runs on http://localhost:5000 and provides an HTTP interface that avoids Python environment issues.
+
+### Integrating with Your Projects
+
+To use the archives with your existing projects:
+
+1. Link the archives to your project:
+   ```bash
+   python scripts/setup.py --link /path/to/your/project
+   ```
+
+2. This will create a .cursorrules file in your project that instructs AI agents how to use the archives.
+
+3. When working in your project, you can use the archives with:
+   ```bash
+   # In your project directory
+   python /path/to/ai.archives/scripts/archives_cli.py quick-search "query"
+   
+   # OR, using the simplified API (recommended for AI agents)
+   python /path/to/ai.archives/ai_archives.py search "query"
+   ```
+
+## Detailed Setup Options
+
+The setup script provides several options:
+
+```bash
+python scripts/setup.py --help
+```
+
+Key options:
+
+- `--install`: Full installation process
+- `--install-path PATH`: Where to install the system
+- `--data-path PATH`: Where to store the archives data
+- `--link PROJECT_PATH`: Link archives to an existing project
+- `--no-examples`: Skip creating example archives
+
+## Documentation
+
+For detailed instructions on using the AI Archives system, please see the [Integration Guide](INTEGRATION_GUIDE.md). This guide covers:
+
+- Setting up the archives in your projects
+- Custom rules management
+- Advanced configuration options
+- REST API for AI agents
+- Troubleshooting common issues
+
+## Command-Line Interface
+
+The AI Archives system includes a command-line interface for easy interaction:
+
+```bash
+python scripts/archives_cli.py --help
+```
+
+Available commands:
+
+- `add`: Add content to archives
+- `search`: Search archives
+- `quick-search`: AI-optimized search
+- `list`: List available archives
+- `rule`: Manage custom rules
+- `generate`: Generate combined cursorrules file
+
+## REST API
+
+The system includes a REST API for simplified access:
+
+```bash
+# Start the REST API server
+python ai_archives.py server
+```
+
+Key endpoints:
+- `GET /search?query=<query>`: Search archives
+- `GET /quick-search?query=<query>&format=text`: AI-optimized search
+- `POST /add`: Add content to archives
+- `GET /rules`: List custom rules
+- `POST /rules`: Add/update a rule
+- `POST /generate-cursorrules`: Generate cursorrules file
+
+## How it Works
+
+1. **Knowledge Storage**: Content is stored in Markdown files organized by project and section
+2. **Custom Rules**: Rules are stored in separate files and merged into the cursorrules file
+3. **AI Integration**: The generated .cursorrules file instructs AI agents how to use the archives
+4. **Search**: The search functionality finds relevant information across all archives
+5. **REST API**: Provides a simplified interface for AI agents that avoids environment issues
+
+## Contributing
+
+Contributions to improve the AI Archives system are welcome. Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -am 'Add new feature'`
+4. Push to the branch: `git push origin feature/my-feature`
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+
+## INTEGRATION_GUIDE
+
+# AI Archives Integration Guide
+
+This guide explains how to integrate the AI Archives system with your existing projects to enable long-lived memory and knowledge sharing for AI agents.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [System Architecture](#system-architecture)
+- [Installation](#installation)
+- [Project Integration](#project-integration)
+- [Data Management](#data-management)
+- [Custom Rules](#custom-rules)
+- [REST API for AI Agents](#rest-api-for-ai-agents)
+- [Advanced Configuration](#advanced-configuration)
+- [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+Before installing the AI Archives system, ensure you have:
+
+- Python 3.8 or higher
+- Git
+- A proper location **outside** of your existing projects to install the system
+
+## System Architecture
+
+The AI Archives system uses a single-repository architecture with a configurable data path:
+
+1. **Main Repository** (`ai.archives`): Contains the core system code, scripts, and utilities
+2. **Archives Directory** (`archives/` by default): Stores your project-specific archives, knowledge, and custom rules
+
+The archives directory contains your knowledge and custom rules, allowing you to:
+- Maintain your knowledge outside of version control if desired
+- Update the system without affecting your archives
+- Preserve your archives during system updates
+
+### Directory Structure
+
+```
+ai.archives/                # Main system repository
+├── archives/               # Archives storage
+│   ├── projects/           # Project-specific content
+│   └── archives/           # Archive data
+├── scripts/                # System scripts
+│   ├── archives_cli.py     # Command-line interface
+│   └── integrate_cursorrules.py # Rule integration tool
+├── archives_api.py         # External API for integration
+├── custom-rules.md         # Default custom rules template
+├── server.py               # REST API server
+├── archives_client.py      # REST API client library
+├── ai_archives.py          # Simplified CLI wrapper
+└── .cursorrules            # Generated cursorrules file
+```
+
+## Installation
+
+### ⚠️ IMPORTANT: Repository Placement
+
+When setting up the AI Archives system, repository placement is CRITICAL to avoid Git conflicts and corruption of existing projects. Follow these strict guidelines:
+
+1. **NEVER install the AI Archives inside an existing project directory**
+2. **ALWAYS use a completely separate location for the AI Archives**
+
+Example of CORRECT installation:
+```
+/Users/username/
+├── projects/                  # User's regular projects folder
+│   └── my-project/            # User's existing project
+│       └── ...
+└── ai-systems/               # Separate location for AI tools
+    └── ai.archives/          # AI Archives repository (INSTALL HERE)
+```
+
+Example of INCORRECT installation (DO NOT DO THIS):
+```
+/Users/username/projects/my-project/  # User's existing project
+├── .git/                             # User's project git repo
+├── ai.archives/                      # ⛔ WRONG! Don't install inside existing project
+└── ...
+```
+
+### Installation Steps
+
+#### ATTENTION AI AGENTS:
+
+When a user asks you to set up the AI Archives system:
+
+1. Ask the user where they want to store the AI Archives repository
+2. Recommend a location OUTSIDE of any existing project directories
+3. DO NOT place the archives inside the user's current working project
+
+#### Standard Installation
+
+1. Clone the main AI Archives repository to a location OUTSIDE of any existing project directories:
+
+```bash
+# Create a directory for AI tools if it doesn't exist
+mkdir -p ~/ai-systems
+cd ~/ai-systems
+
+# Clone the repository
+git clone https://github.com/tylerqr/ai.archives.git
+cd ai.archives
+
+# Run the setup script
+python scripts/setup.py --install
+```
+
+The setup script will ask you where you want to store your archives data. The default location is `./data/` within the repository. You can specify a different location with the `--data-path` option.
+
+## Project Integration
+
+### Linking to Existing Projects
+
+To integrate the AI Archives with your existing projects:
+
+```bash
+# Navigate to the AI Archives repository
+cd ~/ai-systems/ai.archives
+
+# Link to your project
+python scripts/setup.py --link /path/to/your/project
+```
+
+This will:
+1. Generate a .cursorrules file in your project
+2. Configure the file to use the AI Archives system
+
+### Usage from Linked Projects
+
+Once linked, you can use the archives from your project:
+
+```bash
+# Add content to the archives
+python /path/to/ai.archives/scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --content="Your knowledge here"
+
+# Search the archives
+python /path/to/ai.archives/scripts/archives_cli.py quick-search "your search query"
+```
+
+## Data Management
+
+### Frontend-Specific Archives
+
+Store frontend knowledge in the `frontend` project:
+
+```bash
+# Example: Adding frontend setup information
+python scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --file=setup.md
+
+# Example: Adding architecture documentation
+python scripts/archives_cli.py add --project=frontend --section=architecture --title="Architecture" --file=architecture.md
+```
+
+### Backend-Specific Archives
+
+Store backend knowledge in the `backend` project:
+
+```bash
+# Example: Adding API documentation
+python scripts/archives_cli.py add --project=backend --section=apis --title="API Documentation" --file=api-docs.md
+
+# Example: Adding database schema
+python scripts/archives_cli.py add --project=backend --section=architecture --title="Database Schema" --file=schema.md
+```
+
+### Shared Knowledge
+
+Store shared knowledge in the `shared` project:
+
+```bash
+# Example: Adding system architecture
+python scripts/archives_cli.py add --project=shared --section=architecture --title="System Architecture" --file=system-architecture.md
+
+# Example: Adding authentication flow
+python scripts/archives_cli.py add --project=shared --section=setup --title="Authentication Flow" --file=auth-flow.md
+```
+
+### Searching Archives
+
+To search for information across all projects:
+
+```bash
+# Search for "authentication"
+python scripts/archives_cli.py quick-search "authentication"
+```
+
+#### Intelligent Tokenized Search
+
+The AI Archives system uses an intelligent tokenized search algorithm that breaks your query into individual words and finds documents containing those words. This means:
+
+- Multi-word queries like "react native styling" will find documents containing those words, even if the exact phrase doesn't appear
+- Results are ranked by the number of token matches, with the most relevant results first
+- Search results show a "Match Quality" score indicating how many token matches were found
+- Exact phrase matches are still prioritized for backward compatibility
+
+For best results:
+- Include specific keywords in your search queries
+- Use multiple relevant terms to narrow down results
+- Check the Match Quality score to understand why a result was returned
+
+```bash
+# Examples of effective tokenized searches
+python scripts/archives_cli.py quick-search "babel config styling"
+python scripts/archives_cli.py quick-search "styling issues react native"
+```
+
+## Custom Rules
+
+Custom rules allow you to define AI agent behavior specifically for your project. They are stored in the data directory and merged into the cursorrules file.
+
+### Adding Custom Rules
+
+```bash
+# Add a rule for code style
+python scripts/archives_cli.py rule add --name=code_style --file=code-style-rules.md
+
+# Add a rule for Git workflow
+python scripts/archives_cli.py rule add --name=git_workflow --content="# Git Workflow
+- Use feature branches for all new features
+- Create pull requests for code review
+- Squash commits when merging"
+```
+
+### Listing Custom Rules
+
+```bash
+python scripts/archives_cli.py rule list
+```
+
+### Regenerating .cursorrules
+
+After adding or updating custom rules, regenerate the .cursorrules file:
+
+```bash
+python scripts/integrate_cursorrules.py
+```
+
+## REST API for AI Agents
+
+The AI Archives system includes a REST API specifically designed for AI agents. This API simplifies interaction with the archives by eliminating environment issues and providing a more consistent interface.
+
+### Starting the API Server
+
+To start the REST API server:
+
+```bash
+python ai_archives.py server
+```
+
+The server will start on http://localhost:5000 by default. You can specify a different port with the `--port` option:
+
+```bash
+python ai_archives.py server --port 8000
+```
+
+### Using the Simplified Client
+
+The system includes a simplified client script that AI agents can use to interact with the archives:
+
+```bash
+# Search archives
+python ai_archives.py search "authentication error"
+
+# Add content
+python ai_archives.py add frontend errors "Error message" "Error Title"
+
+# List projects
+python ai_archives.py projects
+
+# List sections
+python ai_archives.py sections frontend
+
+# Get rules
+python ai_archives.py rules
+
+# Add/update rule
+python ai_archives.py rule-add code_style "# Code Style Guide..."
+
+# Generate cursorrules
+python ai_archives.py generate
+```
+
+### REST API Endpoints
+
+The REST API provides the following endpoints:
+
+#### Search Endpoints
+
+- **GET /search?query=QUERY&project=PROJECT**
+  - Search the archives with JSON response
+  - Optional project parameter to filter by project
+
+- **GET /quick-search?query=QUERY&project=PROJECT&format=FORMAT**
+  - AI-optimized search with formatted results
+  - format can be "json" or "text" (text is optimized for direct inclusion in AI responses)
+
+#### Content Management
+
+- **POST /add**
+  - Add content to archives
+  - JSON body: `{"project": "...", "section": "...", "content": "...", "title": "..."}`
+
+#### Custom Rules
+
+- **GET /rules**
+  - Get all custom rules
+
+- **POST /rules**
+  - Add or update a custom rule
+  - JSON body: `{"name": "...", "content": "..."}`
+
+- **POST /generate-cursorrules**
+  - Generate combined cursorrules file
+  - Optional JSON body: `{"output_path": "..."}`
+
+#### Discovery
+
+- **GET /list-projects**
+  - List all available projects
+
+- **GET /list-sections?project=PROJECT**
+  - List all sections for a project
+
+#### Health Check
+
+- **GET /ping**
+  - Simple health check to verify the server is running
+
+### Advantages for AI Agents
+
+Using the REST API offers several advantages for AI agents:
+
+1. **Simplicity**: No need to deal with Python environment activation
+2. **Consistency**: Standardized interface across different environments
+3. **Error Handling**: Better error reporting and recovery
+4. **Formatted Responses**: Results are formatted specifically for AI agent consumption
+5. **Reduced Tool Calls**: Simpler commands mean fewer tool calls, speeding up interactions
+
+### Python Client Library
+
+For more advanced use cases, the system also includes a Python client library:
+
+```python
+from archives_client import ArchivesClient
+
+client = ArchivesClient(base_url="http://localhost:5000")
+
+# Search archives
+results = client.quick_search("authentication", format_type="text")
+print(results)
+
+# Add to archives
+client.add("frontend", "errors", "Error message", "Error Title")
+
+# List projects
+projects = client.list_projects()
+print(projects)
+```
+
+## Advanced Configuration
+
+### Customizing Data Location
+
+You can customize where your archives data is stored by specifying the `--data-path` option:
+
+```bash
+# During installation
+python scripts/setup.py --install --data-path /path/to/your/data
+
+# After installation
+python scripts/setup.py --setup-data --data-path /path/to/your/data
+```
+
+### Running Commands with Custom Data Path
+
+When using the CLI, you can specify the data path:
+
+```bash
+python scripts/archives_cli.py --data-path /path/to/your/data quick-search "query"
+```
+
+### Updating Archives
+
+Regularly update the archives with new knowledge:
+
+```bash
+# Add new information
+python scripts/archives_cli.py add --project=frontend --section=fixes --title="Fixed Layout Bug" --content="..."
+```
+
+### Updating the AI Archives System
+
+To update to the latest version of the AI Archives system:
+
+```bash
+cd /path/to/ai.archives
+git pull
+```
+
+Your archives data will remain untouched, as it's stored in the gitignored `data/` directory.
+
+## Troubleshooting
+
+### File Size Management
+
+The AI Archives system automatically manages file sizes:
+
+- Large files are split into multiple files
+- Each file has a maximum line count (configurable in `core/config.json`)
+
+### Configuration Issues
+
+If you need to check or update the system configuration:
+
+```bash
+cat /path/to/ai.archives/core/config.json
+```
+
+### CLI Not Working
+
+If you encounter issues with the CLI:
+
+```bash
+cd /path/to/ai.archives
+python scripts/archives_cli.py --help
+```
+
+### Get Additional Help
+
+If you encounter any issues not covered here, please create an issue in the [GitHub repository](https://github.com/tylerqr/ai.archives/issues). 
 

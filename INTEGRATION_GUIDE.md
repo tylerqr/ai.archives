@@ -10,6 +10,7 @@ This guide explains how to integrate the AI Archives system with your existing p
 - [Project Integration](#project-integration)
 - [Data Management](#data-management)
 - [Custom Rules](#custom-rules)
+- [REST API for AI Agents](#rest-api-for-ai-agents)
 - [Advanced Configuration](#advanced-configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -39,13 +40,15 @@ The archives directory contains your knowledge and custom rules, allowing you to
 ai.archives/                # Main system repository
 ├── archives/               # Archives storage
 │   ├── projects/           # Project-specific content
-│   ├── custom_rules/       # User custom rules
 │   └── archives/           # Archive data
 ├── scripts/                # System scripts
 │   ├── archives_cli.py     # Command-line interface
 │   └── integrate_cursorrules.py # Rule integration tool
 ├── archives_api.py         # External API for integration
 ├── custom-rules.md         # Default custom rules template
+├── server.py               # REST API server
+├── archives_client.py      # REST API client library
+├── ai_archives.py          # Simplified CLI wrapper
 └── .cursorrules            # Generated cursorrules file
 ```
 
@@ -233,6 +236,128 @@ After adding or updating custom rules, regenerate the .cursorrules file:
 python scripts/integrate_cursorrules.py
 ```
 
+## REST API for AI Agents
+
+The AI Archives system includes a REST API specifically designed for AI agents. This API simplifies interaction with the archives by eliminating environment issues and providing a more consistent interface.
+
+### Starting the API Server
+
+To start the REST API server:
+
+```bash
+python ai_archives.py server
+```
+
+The server will start on http://localhost:5000 by default. You can specify a different port with the `--port` option:
+
+```bash
+python ai_archives.py server --port 8000
+```
+
+### Using the Simplified Client
+
+The system includes a simplified client script that AI agents can use to interact with the archives:
+
+```bash
+# Search archives
+python ai_archives.py search "authentication error"
+
+# Add content
+python ai_archives.py add frontend errors "Error message" "Error Title"
+
+# List projects
+python ai_archives.py projects
+
+# List sections
+python ai_archives.py sections frontend
+
+# Get rules
+python ai_archives.py rules
+
+# Add/update rule
+python ai_archives.py rule-add code_style "# Code Style Guide..."
+
+# Generate cursorrules
+python ai_archives.py generate
+```
+
+### REST API Endpoints
+
+The REST API provides the following endpoints:
+
+#### Search Endpoints
+
+- **GET /search?query=QUERY&project=PROJECT**
+  - Search the archives with JSON response
+  - Optional project parameter to filter by project
+
+- **GET /quick-search?query=QUERY&project=PROJECT&format=FORMAT**
+  - AI-optimized search with formatted results
+  - format can be "json" or "text" (text is optimized for direct inclusion in AI responses)
+
+#### Content Management
+
+- **POST /add**
+  - Add content to archives
+  - JSON body: `{"project": "...", "section": "...", "content": "...", "title": "..."}`
+
+#### Custom Rules
+
+- **GET /rules**
+  - Get all custom rules
+
+- **POST /rules**
+  - Add or update a custom rule
+  - JSON body: `{"name": "...", "content": "..."}`
+
+- **POST /generate-cursorrules**
+  - Generate combined cursorrules file
+  - Optional JSON body: `{"output_path": "..."}`
+
+#### Discovery
+
+- **GET /list-projects**
+  - List all available projects
+
+- **GET /list-sections?project=PROJECT**
+  - List all sections for a project
+
+#### Health Check
+
+- **GET /ping**
+  - Simple health check to verify the server is running
+
+### Advantages for AI Agents
+
+Using the REST API offers several advantages for AI agents:
+
+1. **Simplicity**: No need to deal with Python environment activation
+2. **Consistency**: Standardized interface across different environments
+3. **Error Handling**: Better error reporting and recovery
+4. **Formatted Responses**: Results are formatted specifically for AI agent consumption
+5. **Reduced Tool Calls**: Simpler commands mean fewer tool calls, speeding up interactions
+
+### Python Client Library
+
+For more advanced use cases, the system also includes a Python client library:
+
+```python
+from archives_client import ArchivesClient
+
+client = ArchivesClient(base_url="http://localhost:5000")
+
+# Search archives
+results = client.quick_search("authentication", format_type="text")
+print(results)
+
+# Add to archives
+client.add("frontend", "errors", "Error message", "Error Title")
+
+# List projects
+projects = client.list_projects()
+print(projects)
+```
+
 ## Advanced Configuration
 
 ### Customizing Data Location
@@ -282,14 +407,14 @@ Your archives data will remain untouched, as it's stored in the gitignored `data
 The AI Archives system automatically manages file sizes:
 
 - Large files are split into multiple files
-- Each file has a maximum line count (configurable in `archives/core/config.json`)
+- Each file has a maximum line count (configurable in `core/config.json`)
 
 ### Configuration Issues
 
 If you need to check or update the system configuration:
 
 ```bash
-cat /path/to/ai.archives/archives/core/config.json
+cat /path/to/ai.archives/core/config.json
 ```
 
 ### CLI Not Working

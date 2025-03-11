@@ -11,8 +11,12 @@ from pathlib import Path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
 
-# Import the archives manager
-from archives.core.archives_manager import get_archives_manager
+# Try to import from core directly
+try:
+    from core.archives_manager import get_archives_manager
+except ImportError:
+    # Fall back to old import path for backward compatibility
+    from archives.core.archives_manager import get_archives_manager
 
 def main():
     """Test search functionality"""

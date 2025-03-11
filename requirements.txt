@@ -11,6 +11,10 @@ click==8.1.3
 rich==13.3.5
 typer==0.9.0
 
+# REST API dependencies
+Flask==2.3.3
+flask-cors==4.0.0
+
 # Optional dependencies
 redis==4.5.5  # For caching (optional)
 psycopg2-binary==2.9.6  # For PostgreSQL support (optional)

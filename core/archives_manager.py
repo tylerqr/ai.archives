@@ -108,46 +108,47 @@ class ArchivesManager:
     Main class for managing the AI Archives system.
     """
     
-    def __init__(self, repo_root: str = None, data_path: str = None):
+    def __init__(self, data_path=None, github_token=None):
         """
-        Initialize the ArchivesManager with the repository root path and data path.
+        Initialize the ArchivesManager with the given data path.
         
         Args:
-            repo_root: Path to the main repository root. If None, tries to determine automatically.
-            data_path: Path to the data directory. If None, tries to determine from config.
+            data_path: Path to the data directory. If None, tries to find from config
+            github_token: GitHub API token for integration features
         """
-        # Find repo root if not provided
-        if repo_root is None:
-            self.repo_root = self._find_repo_root()
+        # Get the repo root (where the project was installed)
+        self.repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Load config if it exists
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
         else:
-            self.repo_root = repo_root
+            self.config = {'settings': DEFAULT_CONFIG}
+        
+        self.token = github_token or os.environ.get('GITHUB_TOKEN')
+        
+        # Setup data path
+        if data_path:
+            self.data_path = os.path.abspath(data_path)
+        else:
+            # Use config value if available
+            self.data_path = self.config.get('settings', {}).get('data_directory', None)
             
-        # Load configuration
-        self.config_path = os.path.join(self.repo_root, 'archives', 'core', 'config.json')
-        self.config = self._load_config()
+            # If not set in config, use current directory
+            if not self.data_path:
+                self.data_path = os.path.dirname(self.repo_root)
         
-        # Set up data directory path - first check if data_path is specified
-        if data_path is not None:
-            self.data_path = data_path
-        elif 'data_directory' in self.config.get('settings', {}):
-            self.data_path = self.config['settings']['data_directory']
-        else:
-            # If no data directory specified, use default ./archives/ inside repo
-            self.data_path = os.path.join(self.repo_root, 'archives')
-        
-        # Ensure data path is absolute
-        self.data_path = os.path.abspath(self.data_path)
-        
-        # Setup paths for main repository
+        # Setup paths for archives
         self.archives_dir = os.path.join(self.repo_root, 'archives')
-        self.core_dir = os.path.join(self.archives_dir, 'core')
-        # API is now in the root directory
+        
+        # For backward compatibility, support both paths
         self.api_dir = self.repo_root
         
-        # Setup paths for data repository - now using archives/archives
+        # Setup paths for data repository - simplified structure
+        # Projects are directly under the archives directory
         self.data_archives_dir = os.path.join(self.data_path, 'archives')
-        self.projects_dir = os.path.join(self.data_path, 'projects')
-        self.custom_rules_dir = os.path.join(self.data_path, 'custom_rules')
         
         # Create directories if they don't exist
         self._ensure_directories_exist()
@@ -156,67 +157,6 @@ class ArchivesManager:
         """Create required directories if they don't exist."""
         os.makedirs(self.data_path, exist_ok=True)
         os.makedirs(self.data_archives_dir, exist_ok=True)
-        os.makedirs(self.projects_dir, exist_ok=True)
-        os.makedirs(self.custom_rules_dir, exist_ok=True)
-        
-        # Create project directories
-        for project in self.config["settings"]["archive_structure"]["projects"]:
-            project_dir = os.path.join(self.projects_dir, project)
-            os.makedirs(project_dir, exist_ok=True)
-            
-            for section in self.config["settings"]["archive_structure"]["sections"]:
-                section_dir = os.path.join(project_dir, section)
-                os.makedirs(section_dir, exist_ok=True)
-        
-    def _find_repo_root(self) -> str:
-        """
-        Find the repository root by looking for the .git directory.
-        
-        Returns:
-            Path to the repository root
-        """
-        # Start from the current directory and look for .git
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        while current_dir != os.path.dirname(current_dir):  # Stop at filesystem root
-            if os.path.exists(os.path.join(current_dir, '.git')):
-                return current_dir
-            current_dir = os.path.dirname(current_dir)
-        
-        # If we couldn't find the root, use two levels up from the current file
-        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        
-    def _load_config(self) -> Dict[str, Any]:
-        """
-        Load the configuration from the config.json file.
-        
-        Returns:
-            Configuration dictionary
-        """
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                print(f"Warning: Could not parse config file at {self.config_path}")
-        
-        # Default configuration
-        return {
-            "version": "1.0.0",
-            "settings": {
-                "max_file_lines": 500,
-                "default_format": "markdown",
-                "archive_structure": {
-                    "projects": ["frontend", "backend", "shared"],
-                    "sections": ["setup", "architecture", "errors", "fixes", "apis", "dependencies", "recommendations"]
-                },
-                "cursorrules": {
-                    "base_repo": "grapeot/devin.cursorrules",
-                    "base_branch": "multi-agent",
-                    "base_file": ".cursorrules",
-                    "custom_rules_dir": "archives/custom_rules"
-                }
-            }
-        }
         
     def get_appropriate_archive_file(self, project: str, section: str) -> Tuple[str, bool]:
         """
@@ -243,7 +183,7 @@ class ArchivesManager:
             print(f"Creating directory for new section: {section}")
         
         # Create directories if they don't exist
-        project_dir = os.path.join(self.projects_dir, project)
+        project_dir = os.path.join(self.data_archives_dir, project)
         os.makedirs(project_dir, exist_ok=True)
         
         section_dir = os.path.join(project_dir, section)
@@ -343,7 +283,7 @@ class ArchivesManager:
         
         # Search each project
         for proj in projects:
-            project_dir = os.path.join(self.projects_dir, proj)
+            project_dir = os.path.join(self.data_archives_dir, proj)
             
             if not os.path.exists(project_dir):
                 continue
@@ -413,7 +353,7 @@ class ArchivesManager:
         
         # Search each project
         for proj in projects:
-            project_dir = os.path.join(self.projects_dir, proj)
+            project_dir = os.path.join(self.data_archives_dir, proj)
             
             if not os.path.exists(project_dir):
                 continue
@@ -455,7 +395,7 @@ class ArchivesManager:
     
     def update_custom_rules(self, rule_content: str, rule_name: str) -> str:
         """
-        Update custom rules in the archives.
+        Update or create a custom rule.
         
         Args:
             rule_content: Content of the rule
@@ -464,11 +404,12 @@ class ArchivesManager:
         Returns:
             Path to the rule file
         """
-        # Make sure custom rules directory exists
-        os.makedirs(self.custom_rules_dir, exist_ok=True)
+        # Ensure rule name ends with .md
+        if not rule_name.endswith('.md'):
+            rule_name = f"{rule_name}.md"
         
-        # Create or update rule file
-        rule_file = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
+        # Save to root directory
+        rule_file = os.path.join(self.repo_root, rule_name)
         
         with open(rule_file, 'w') as f:
             f.write(rule_content)
@@ -483,44 +424,69 @@ class ArchivesManager:
             List of dictionaries with 'name', 'file', and 'content' for each rule
         """
         rules = []
+        rules_by_name = {}  # Track rules by name to handle duplicates
         
-        # Make sure custom rules directory exists
-        os.makedirs(self.custom_rules_dir, exist_ok=True)
-        
-        # Check for custom rules in main repo, for backwards compatibility
-        main_repo_custom_rules_dir = os.path.join(self.archives_dir, 'custom_rules')
-        for rule_file in glob.glob(os.path.join(main_repo_custom_rules_dir, "*.md")):
-            # Check if this rule exists in the data path (prioritize data path)
+        # Priority 1: Check for custom rules in the repo root directory (highest priority)
+        repo_root_custom_rules = os.path.join(self.repo_root, "*.md")
+        for rule_file in glob.glob(repo_root_custom_rules):
             rule_name = os.path.splitext(os.path.basename(rule_file))[0]
-            data_rule_file = os.path.join(self.custom_rules_dir, f"{rule_name}.md")
             
-            if os.path.exists(data_rule_file):
-                continue  # Skip, we'll pick it up in the next loop
+            # Only consider .md files that are likely to be custom rules
+            if rule_name.lower() in ['custom-rules', 'ai_archives_integration', 'archives_integration', 'explicit_permission']:
+                with open(rule_file, 'r') as f:
+                    content = f.read()
+                
+                rules_by_name[rule_name] = {
+                    'name': rule_name,
+                    'file': rule_file,
+                    'content': content
+                }
+        
+        # Priority 2: Check in data_path for custom rules (for backward compatibility)
+        data_path_custom_rules = os.path.join(self.data_path, "*.md")
+        for rule_file in glob.glob(data_path_custom_rules):
+            rule_name = os.path.splitext(os.path.basename(rule_file))[0]
             
-            # This rule is only in the main repo
+            # Skip if we already have this rule from repo root
+            if rule_name in rules_by_name:
+                continue
+                
             with open(rule_file, 'r') as f:
                 content = f.read()
             
-            rules.append({
+            rules_by_name[rule_name] = {
                 'name': rule_name,
                 'file': rule_file,
                 'content': content
-            })
+            }
         
-        # Get custom rules from data path
-        for rule_file in glob.glob(os.path.join(self.custom_rules_dir, "*.md")):
-            rule_name = os.path.splitext(os.path.basename(rule_file))[0]
-            
-            with open(rule_file, 'r') as f:
-                content = f.read()
-            
-            rules.append({
-                'name': rule_name,
-                'file': rule_file,
-                'content': content
-            })
+        # Priority 3: Check for custom rules in previous locations (backwards compatibility)
+        # Legacy locations to check in order from highest to lowest priority:
+        legacy_locations = [
+            os.path.join(self.data_path, 'custom_rules'),  # Old data path location
+            os.path.join(self.archives_dir, 'custom_rules')  # Old archives location
+        ]
         
-        return rules
+        for legacy_dir in legacy_locations:
+            if os.path.exists(legacy_dir):
+                for rule_file in glob.glob(os.path.join(legacy_dir, "*.md")):
+                    rule_name = os.path.splitext(os.path.basename(rule_file))[0]
+                    
+                    # Skip if we already have this rule from another source
+                    if rule_name in rules_by_name:
+                        continue
+                    
+                    with open(rule_file, 'r') as f:
+                        content = f.read()
+                    
+                    rules_by_name[rule_name] = {
+                        'name': rule_name,
+                        'file': rule_file,
+                        'content': content
+                    }
+        
+        # Convert dictionary to list
+        return list(rules_by_name.values())
     
     def generate_combined_cursorrules(self, output_path: Optional[str] = None) -> str:
         """
@@ -633,23 +599,39 @@ You are a powerful AI assistant working in Cursor. This is a .cursorrules file t
 
 def get_archives_manager(repo_root: str = None, data_repo_root: str = None, data_path: str = None) -> ArchivesManager:
     """
-    Get an archives manager instance with the specified paths.
+    Get an instance of the ArchivesManager.
+    This is the main entry point for using the archives system.
     
     Args:
-        repo_root: Path to the main repository root. If None, tries to determine automatically.
-        data_repo_root: Path to the data repository root. If None, tries to determine from config.
-        data_path: Path to the data directory. If not None, overrides data_repo_root.
+        repo_root: Path to the repository root
+        data_repo_root: Path to the data repository root (for backward compatibility)
+        data_path: Path to the data directory
         
     Returns:
-        ArchivesManager instance
+        An instance of ArchivesManager
     """
-    # For backward compatibility, if data_repo_root is specified but data_path is not,
-    # use data_repo_root as the base for data_path
+    # Handle data_repo_root parameter (for backward compatibility)
     if data_repo_root is not None and data_path is None:
-        data_path = os.path.join(data_repo_root, 'archives')
+        data_path = data_repo_root
     
-    # Create and return the manager
-    return ArchivesManager(repo_root=repo_root, data_path=data_path)
+    return ArchivesManager(data_path=data_path)
+
+# Create a compatibility module to allow importing from archives.core.archives_manager
+# This will be removed in a future version
+import sys
+import os
+
+# Add a hook to handle imports from the old location
+class ArchivesCoreCompatModule:
+    def __init__(self):
+        self.archives_manager = sys.modules[__name__]
+        
+    def __getattr__(self, name):
+        return getattr(self.archives_manager, name)
+
+# Create the module and add it to sys.modules for backward compatibility
+sys.modules['archives.core.archives_manager'] = ArchivesCoreCompatModule()
+sys.modules['archives.core'] = ArchivesCoreCompatModule()
 
 
 if __name__ == "__main__":

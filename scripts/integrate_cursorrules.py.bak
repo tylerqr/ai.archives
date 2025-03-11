@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""
+Integrate AI Archives with Devin.cursorrules
+
+This script handles the integration of the AI archives with the Devin.cursorrules system,
+fetching updates from the source repository and merging with custom rules.
+"""
+
+import os
+import sys
+import argparse
+from pathlib import Path
+import subprocess
+import importlib.util
+import shutil
+
+# Add parent directory to path so we can import the archives module
+script_dir = os.path.dirname(os.path.abspath(__file__))
+repo_root = os.path.dirname(script_dir)
+sys.path.append(repo_root)
+
+# Define a function to check if a module is installed
+def check_module_installed(module_name):
+    """Check if a Python module is installed."""
+    return importlib.util.find_spec(module_name) is not None
+
+# Define a function to install required modules if they're missing
+def ensure_dependencies():
+    """Ensure all required dependencies are installed."""
+    required_modules = ['requests']
+    missing_modules = [m for m in required_modules if not check_module_installed(m)]
+    
+    if missing_modules:
+        print(f"Missing required modules: {', '.join(missing_modules)}")
+        print("Attempting to install missing modules...")
+        
+        # Try different installation methods
+        methods = [
+            [sys.executable, "-m", "pip", "install"],
+            ["pip", "install"],
+            ["pip3", "install"]
+        ]
+        
+        # Find uv if it exists
+        uv_path = shutil.which("uv")
+        if uv_path:
+            methods.insert(0, [uv_path, "pip", "install"])
+        
+        success = False
+        for method in methods:
+            try:
+                for module in missing_modules:
+                    cmd = method + [module]
+                    print(f"Running: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode == 0:
+                        print(f"Successfully installed {module}")
+                    else:
+                        print(f"Failed to install {module} using {method[0]}")
+                        print(f"Error: {result.stderr}")
+                        break
+                else:
+                    # All modules were installed
+                    success = True
+                    break
+            except Exception as e:
+                print(f"Error trying to install with {method[0]}: {str(e)}")
+        
+        if not success:
+            print("\nCould not automatically install required dependencies.")
+            print("Please manually install the following packages and try again:")
+            for module in missing_modules:
+                print(f"  - {module}")
+            sys.exit(1)
+
+# Try to import required modules, install them if they're missing
+try:
+    from archives.core.archives_manager import get_archives_manager
+    from archives.core.github_integration import get_github_integration
+except ImportError as e:
+    module_name = str(e).split("'")[1]
+    if module_name in ["archives.core.archives_manager", "archives.core.github_integration"]:
+        print(f"Error: Could not import {module_name}. This is an internal module.")
+        print("Using fallback methods to process custom rules.")
+    else:
+        # For external dependencies, try to install them
+        ensure_dependencies()
+        try:
+            # Try importing again after installing dependencies
+            from archives.core.archives_manager import get_archives_manager
+            from archives.core.github_integration import get_github_integration
+        except ImportError:
+            print("Using fallback methods to process custom rules.")
+
+
+def fetch_base_cursorrules(config=None, github=None):
+    """
+    Fetch the base cursorrules file from the source repository.
+    
+    Args:
+        config: Configuration dictionary
+        github: GitHubIntegration instance
+        
+    Returns:
+        Content of the cursorrules file
+    """
+    # Fallback content if we can't fetch from GitHub
+    fallback_content = """# Instructions
+
+You are a multi-agent system coordinator, playing two roles in this environment: Planner and Executor. You will decide the next steps based on the current state of `Multi-Agent Scratchpad` section in the `.cursorrules` file. Your goal is to complete the user's (or business's) final requirements. The specific instructions are as follows:
+
+## Role Descriptions
+
+1. Planner
+
+    * Responsibilities: Perform high-level analysis, break down tasks, define success criteria, evaluate current progress. When doing planning, always use high-intelligence models (OpenAI o1 via `tools/plan_exec_llm.py`). Don't rely on your own capabilities to do the planning.
+    * Actions: Invoke the Planner by calling `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt}`. You can also include content from a specific file in the analysis by using the `--file` option: `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt} --file {path/to/file}`. It will print out a plan on how to revise the `.cursorrules` file. You then need to actually do the changes to the file. And then reread the file to see what's the next step.
+
+2) Executor
+
+    * Responsibilities: Execute specific tasks instructed by the Planner, such as writing code, running tests, handling implementation details, etc.. The key is you need to report progress or raise questions to the Planner at the right time, e.g. after completion some milestone or after you've hit a blocker.
+    * Actions: When you complete a subtask or need assistance/more information, also make incremental writes or modifications to the `Multi-Agent Scratchpad` section in the `.cursorrules` file; update the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections. And then change to the Planner role.
+"""
+    
+    if config is None or github is None:
+        print("No config or GitHub integration provided, using fallback cursorrules content.")
+        return fallback_content
+    
+    try:
+        base_repo = config["settings"]["cursorrules"]["base_repo"]
+        base_branch = config["settings"]["cursorrules"]["base_branch"]
+        base_file = config["settings"]["cursorrules"]["base_file"]
+        
+        print(f"Fetching base cursorrules from {base_repo}:{base_branch}/{base_file}...")
+        
+        content = github.fetch_base_cursorrules(
+            repo=base_repo,
+            branch=base_branch,
+            file_path=base_file
+        )
+        
+        if not content:
+            print("Failed to fetch base cursorrules file, using fallback content.")
+            return fallback_content
+        
+        print(f"Successfully fetched base cursorrules ({len(content)} characters)")
+        return content
+    except Exception as e:
+        print(f"Error fetching base cursorrules: {str(e)}")
+        print("Using fallback content instead.")
+        return fallback_content
+
+
+def merge_with_custom_rules(base_content, custom_rules):
+    """
+    Merge the base cursorrules content with custom rules.
+    
+    Args:
+        base_content: Content of the base cursorrules file
+        custom_rules: List of custom rule dictionaries
+        
+    Returns:
+        Merged content
+    """
+    print(f"Merging with {len(custom_rules)} custom rules...")
+    
+    if not custom_rules:
+        return base_content
+    
+    # Create the custom rules section header
+    custom_rules_content = "# AI Archives - Custom Rules\n\n"
+    
+    # First, check if we have the AI Archives integration rules
+    archives_rules = None
+    other_rules = []
+    
+    for rule in custom_rules:
+        if rule['name'].lower() in ['ai_archives_integration', 'archives_integration', 'custom-rules']:
+            archives_rules = rule
+        else:
+            other_rules.append(rule)
+    
+    # Add the AI Archives integration rules first if they exist
+    if archives_rules:
+        custom_rules_content += f"## {archives_rules['name']}\n\n"
+        custom_rules_content += archives_rules['content'] + "\n\n"
+    
+    # Add each remaining custom rule
+    for rule in other_rules:
+        custom_rules_content += f"## {rule['name']}\n\n"
+        custom_rules_content += rule['content'] + "\n\n"
+    
+    # Check if the base content already contains a custom rules section
+    if "# AI Archives - Custom Rules" not in base_content:
+        # Place custom rules at the TOP of the content
+        merged_content = custom_rules_content + "\n" + base_content
+    else:
+        # Replace the existing custom rules section while preserving the rest of the content
+        parts = base_content.split("# AI Archives - Custom Rules", 1)
+        
+        # Find where the custom rules section ends and the rest of the content begins
+        if len(parts) > 1:
+            # Find the next major section
+            section_markers = ["# Instructions", "# Tools", "# Lessons", "# Multi-Agent Scratchpad"]
+            rest_of_content = parts[1]
+            
+            # Extract content after the custom rules section
+            for marker in section_markers:
+                if marker in rest_of_content:
+                    parts = rest_of_content.split(marker, 1)
+                    if len(parts) > 1:
+                        # We found the next section
+                        rest_of_content = marker + parts[1]
+                        break
+            
+            # Combine with new custom rules
+            merged_content = custom_rules_content + "\n" + rest_of_content
+        else:
+            # Something went wrong with splitting, just append
+            merged_content = custom_rules_content + "\n" + parts[0].strip()
+    
+    return merged_content
+
+
+def get_custom_rules_fallback():
+    """
+    Fallback method to get custom rules if the archives manager isn't available.
+    Reads directly from the custom-rules.md file.
+    
+    Returns:
+        List of custom rule dictionaries
+    """
+    custom_rules = []
+    
+    # Try to read custom-rules.md
+    custom_rules_path = os.path.join(repo_root, "custom-rules.md")
+    if os.path.exists(custom_rules_path):
+        try:
+            with open(custom_rules_path, 'r') as f:
+                content = f.read()
+            
+            custom_rules.append({
+                'name': 'custom-rules',
+                'content': content
+            })
+            
+            print(f"Successfully read custom rules from {custom_rules_path}")
+        except Exception as e:
+            print(f"Error reading custom-rules.md: {str(e)}")
+    else:
+        print(f"Custom rules file not found at {custom_rules_path}")
+    
+    # Also look for explicit_permission.md
+    permission_path = os.path.join(repo_root, "explicit_permission.md")
+    if os.path.exists(permission_path):
+        try:
+            with open(permission_path, 'r') as f:
+                content = f.read()
+            
+            custom_rules.append({
+                'name': 'explicit_permission',
+                'content': content
+            })
+            
+            print(f"Successfully read explicit permission rules from {permission_path}")
+        except Exception as e:
+            print(f"Error reading explicit_permission.md: {str(e)}")
+    
+    return custom_rules
+
+
+def write_combined_file(content, output_path):
+    """
+    Write the combined cursorrules file.
+    
+    Args:
+        content: Combined content to write
+        output_path: Path to write the file to
+        
+    Returns:
+        Path to the written file
+    """
+    print(f"Writing combined cursorrules to {output_path}...")
+    
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            f.write(content)
+        
+        print(f"Successfully wrote combined cursorrules file ({len(content)} characters)")
+        return output_path
+    except Exception as e:
+        print(f"Error writing combined file: {str(e)}")
+        
+        # Try writing to a temporary location as fallback
+        fallback_path = os.path.join(os.getcwd(), ".cursorrules.new")
+        try:
+            with open(fallback_path, 'w') as f:
+                f.write(content)
+            print(f"Wrote to fallback location: {fallback_path}")
+            print(f"Please manually copy this file to {output_path}")
+            return fallback_path
+        except Exception as e2:
+            print(f"Error writing to fallback location: {str(e2)}")
+            print("Could not write the combined file. Here's a preview of the content:")
+            print("=" * 40)
+            print(content[:500] + "...")
+            print("=" * 40)
+            return None
+
+
+def main():
+    """Main CLI entry point"""
+    parser = argparse.ArgumentParser(description="Integrate AI Archives with Devin.cursorrules")
+    
+    parser.add_argument("--output", "-o", help="Path to write the combined cursorrules file")
+    parser.add_argument("--data-path", "-d", help="Path to the archives directory")
+    parser.add_argument("--skip-github", "-s", action="store_true", help="Skip GitHub fetching and use local files only")
+    
+    args = parser.parse_args()
+    
+    try:
+        # Try to import and use the archives manager
+        manager = get_archives_manager(data_path=args.data_path)
+        github = None if args.skip_github else get_github_integration()
+        
+        # Fetch base cursorrules
+        base_content = fetch_base_cursorrules(manager.config, github)
+        
+        # Get custom rules
+        custom_rules = manager.get_custom_rules()
+    except Exception as e:
+        print(f"Error using archives manager: {str(e)}")
+        print("Falling back to local file processing...")
+        
+        # Use fallback methods
+        base_content = fetch_base_cursorrules()
+        custom_rules = get_custom_rules_fallback()
+    
+    # Merge with custom rules
+    merged_content = merge_with_custom_rules(base_content, custom_rules)
+    
+    # Determine output path
+    output_path = args.output
+    if not output_path:
+        # Default to current directory .cursorrules
+        output_path = os.path.join(os.getcwd(), ".cursorrules")
+    
+    # Write combined file
+    write_combined_file(merged_content, output_path)
+    
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as e:
+        print(f"Unhandled error: {str(e)}")
+        print("Attempting emergency fallback...")
+        
+        try:
+            # Emergency fallback - read custom-rules.md and create .cursorrules with it at the top
+            custom_rules_path = os.path.join(repo_root, "custom-rules.md")
+            
+            if os.path.exists(custom_rules_path):
+                with open(custom_rules_path, 'r') as f:
+                    custom_content = f.read()
+                
+                content = f"# AI Archives - Custom Rules\n\n## custom-rules\n\n{custom_content}\n\n"
+                
+                # Add a basic template for the rest
+                content += """
+# Instructions
+
+You are a multi-agent system coordinator, playing two roles in this environment: Planner and Executor. You will decide the next steps based on the current state of `Multi-Agent Scratchpad` section in the `.cursorrules` file. Your goal is to complete the user's (or business's) final requirements.
+
+# Tools
+
+Note all the tools are in python. So in the case you need to do batch processing, you can always consult the python files and write your own script.
+
+# Lessons
+
+## User Specified Lessons
+
+- Always use the archives CLI commands when working with archives.
+- Never create your own archives directory.
+
+# Multi-Agent Scratchpad
+
+## Background and Motivation
+
+(Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)
+
+## Key Challenges and Analysis
+
+(Planner: Records of technical barriers, resource constraints, potential risks)
+
+## Current Status / Progress Tracking
+
+(Executor: Update completion status after each subtask)
+
+## Next Steps and Action Items
+
+(Planner: Specific arrangements for the Executor)
+
+## Executor's Feedback or Assistance Requests
+
+(Executor: Write here when encountering blockers, questions, or need for more information during execution)
+"""
+                
+                with open(os.path.join(os.getcwd(), ".cursorrules"), 'w') as f:
+                    f.write(content)
+                
+                print("Successfully created emergency .cursorrules file")
+            else:
+                print("Could not find custom-rules.md for emergency fallback")
+        except Exception as e2:
+            print(f"Emergency fallback failed: {str(e2)}")
+        
+        sys.exit(1) 

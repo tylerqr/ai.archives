@@ -16,17 +16,22 @@ import json
 import subprocess
 import textwrap
 import configparser
+import re
+import tempfile
+from datetime import datetime
+from typing import Dict, Any, Optional, List, Tuple
 
 # Add parent directory to path so we can import the archives module
 script_dir = os.path.dirname(os.path.abspath(__file__))
 repo_root = os.path.dirname(script_dir)
 sys.path.append(repo_root)
 
+# Try to import get_archives_manager from core directly
 try:
-    from archives.core.archives_manager import get_archives_manager
+    from core.archives_manager import get_archives_manager
 except ImportError:
-    print("Error: Could not import archives module. Make sure you're running this script from the correct directory.")
-    sys.exit(1)
+    # Fall back to old import path for backward compatibility
+    from archives.core.archives_manager import get_archives_manager
 
 
 def print_header(text):
@@ -86,7 +91,7 @@ def setup_data_directory(data_path=None, create_examples=True):
     Set up the AI archives data directory structure
 
     Args:
-        data_path: Path to the data directory. If None, uses ./archives/
+        data_path: Path to the data directory. If None, uses repo root
         create_examples: Whether to create example archives
 
     Returns:
@@ -94,51 +99,227 @@ def setup_data_directory(data_path=None, create_examples=True):
     """
     print_header("Setting up AI Archives Data Directory")
     
-    # Use default data directory if not specified
+    # Use repo root as the data directory if not specified
     if data_path is None:
-        data_path = os.path.join(repo_root, "archives")
+        data_path = repo_root
     
     data_path = os.path.abspath(data_path)
-    print(f"Setting up data directory at: {data_path}")
+    print(f"Setting up archives at: {data_path}")
     
-    # Create data directory structure
-    os.makedirs(data_path, exist_ok=True)
-    
+    # Create simplified directory structure
     archives_dir = os.path.join(data_path, "archives")
     os.makedirs(archives_dir, exist_ok=True)
     
-    projects_dir = os.path.join(archives_dir, "projects")
-    os.makedirs(projects_dir, exist_ok=True)
+    # Create project directories under archives/
+    projects = ["frontend", "backend", "shared"]
+    sections = ["setup", "architecture", "errors", "fixes", "apis", "dependencies", "recommendations"]
     
-    custom_rules_dir = os.path.join(archives_dir, "custom_rules")
-    os.makedirs(custom_rules_dir, exist_ok=True)
-    
-    # Create default project directories
-    manager = get_archives_manager()
-    for project in manager.config["settings"]["archive_structure"]["projects"]:
-        project_dir = os.path.join(projects_dir, project)
+    for project in projects:
+        project_dir = os.path.join(archives_dir, project)
         os.makedirs(project_dir, exist_ok=True)
         
-        for section in manager.config["settings"]["archive_structure"]["sections"]:
+        for section in sections:
             section_dir = os.path.join(project_dir, section)
             os.makedirs(section_dir, exist_ok=True)
     
-    # Copy the default custom rules to the data directory
+    # Copy custom-rules template to the root
     source_rules_path = os.path.join(repo_root, "custom-rules.md")
-    target_rules_path = os.path.join(custom_rules_dir, "custom-rules.md")
+    target_rules_path = os.path.join(data_path, "custom-rules.md")
     
-    if os.path.exists(source_rules_path) and not os.path.exists(target_rules_path):
-        shutil.copy2(source_rules_path, target_rules_path)
-        print("✓ Copied default custom rules to data directory")
+    if not os.path.exists(target_rules_path):
+        if os.path.exists(source_rules_path):
+            shutil.copy(source_rules_path, target_rules_path)
+            print(f"✓ Custom rules template copied to {target_rules_path}")
+        else:
+            print(f"Warning: Custom rules template not found at {source_rules_path}")
+    else:
+        print(f"✓ Custom rules already exist at {target_rules_path}")
     
-    # Update the config file to point to the data directory
-    update_config(data_path)
-    
-    # Create example archives if requested
+    # Create sample content if requested
     if create_examples:
         create_sample_content(data_path)
     
     return data_path
+
+
+def create_wrapper_script():
+    """
+    Create the run_archives.sh wrapper script if it doesn't exist yet.
+    This script ensures the correct Python interpreter is used.
+    """
+    wrapper_script_path = os.path.join(repo_root, "run_archives.sh")
+    
+    if os.path.exists(wrapper_script_path):
+        print("✓ Wrapper script already exists")
+        
+        # Make sure it's executable
+        if not os.access(wrapper_script_path, os.X_OK):
+            os.chmod(wrapper_script_path, 0o755)
+            print("✓ Made wrapper script executable")
+        
+        return
+    
+    print("Creating wrapper script (run_archives.sh)...")
+    
+    wrapper_content = textwrap.dedent("""#!/bin/bash
+# run_archives.sh
+# 
+# This script ensures the correct Python interpreter is used for AI Archives commands
+# It prevents the common error where 'python' command isn't found
+
+# Set default port (avoiding port 5000 which conflicts with AirPlay Receiver on macOS)
+PORT=5001
+SERVER_URL="http://localhost:$PORT"
+
+# Find the Python interpreter to use
+if [ -f ".venv/bin/python" ]; then
+    # First try .venv directory (common venv location)
+    PYTHON=".venv/bin/python"
+elif command -v python3 &> /dev/null; then
+    # Fall back to system python3
+    PYTHON="python3"
+else
+    # Last resort - try python
+    PYTHON="python"
+fi
+
+# Script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Function to start the server
+start_server() {
+    echo "Starting AI Archives server on port $PORT..."
+    # Set PORT environment variable
+    export PORT=$PORT
+    $PYTHON "$SCRIPT_DIR/server.py" &
+    sleep 2
+    echo "Server started in background on port $PORT."
+}
+
+# Function to check if server is running
+check_server() {
+    if curl -s $SERVER_URL/ping > /dev/null; then
+        echo "Server is running on port $PORT."
+        return 0
+    else
+        echo "Server is not running on port $PORT."
+        return 1
+    fi
+}
+
+# Function to generate cursorrules
+generate_cursorrules() {
+    output_path=""
+    if [ ! -z "$1" ]; then
+        output_path="--output $1"
+    fi
+    
+    # Make sure server is running
+    if ! check_server; then
+        start_server
+    fi
+    
+    # Try using the REST API first
+    echo "Generating cursorrules file..."
+    # Set server URL to use the custom port
+    if $PYTHON "$SCRIPT_DIR/ai_archives.py" generate $output_path --server-url "$SERVER_URL"; then
+        echo "Successfully generated cursorrules file."
+    else
+        echo "Error using REST API. Falling back to direct method..."
+        # Fallback to the direct method
+        if [ -f "$SCRIPT_DIR/scripts/integrate_cursorrules.py" ]; then
+            $PYTHON "$SCRIPT_DIR/scripts/integrate_cursorrules.py" $output_path
+        else
+            echo "Error: Fallback script not found."
+            return 1
+        fi
+    fi
+}
+
+# Function to search archives
+search_archives() {
+    if [ -z "$1" ]; then
+        echo "Error: Search query required."
+        return 1
+    fi
+    
+    # Make sure server is running
+    if ! check_server; then
+        start_server
+    fi
+    
+    # Run search
+    $PYTHON "$SCRIPT_DIR/ai_archives.py" search "$1" --server-url "$SERVER_URL"
+}
+
+# Function to add to archives
+add_to_archives() {
+    if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
+        echo "Error: Project, section and content required."
+        echo "Usage: ./run_archives.sh add <project> <section> <content> [title]"
+        return 1
+    fi
+    
+    project="$1"
+    section="$2"
+    content="$3"
+    title="${4:-}"
+    
+    # Make sure server is running
+    if ! check_server; then
+        start_server
+    fi
+    
+    # Run add
+    if [ -z "$title" ]; then
+        $PYTHON "$SCRIPT_DIR/ai_archives.py" add "$project" "$section" "$content" --server-url "$SERVER_URL"
+    else
+        $PYTHON "$SCRIPT_DIR/ai_archives.py" add "$project" "$section" "$content" "$title" --server-url "$SERVER_URL"
+    fi
+}
+
+# Parse command line arguments
+if [ $# -eq 0 ]; then
+    echo "Usage: ./run_archives.sh <command> [arguments]"
+    echo ""
+    echo "Available commands:"
+    echo "  server             - Start the archives server"
+    echo "  generate [output]  - Generate combined cursorrules file"
+    echo "  search <query>     - Search the archives"
+    echo "  add <project> <section> <content> [title] - Add to archives"
+    exit 1
+fi
+
+command="$1"
+shift
+
+case "$command" in
+    server)
+        start_server
+        ;;
+    generate)
+        generate_cursorrules "$1"
+        ;;
+    search)
+        search_archives "$1"
+        ;;
+    add)
+        add_to_archives "$1" "$2" "$3" "$4"
+        ;;
+    *)
+        echo "Unknown command: $command"
+        exit 1
+        ;;
+esac 
+""")
+    
+    with open(wrapper_script_path, 'w') as f:
+        f.write(wrapper_content)
+    
+    # Make the script executable
+    os.chmod(wrapper_script_path, 0o755)
+    
+    print("✓ Created and made executable the wrapper script (run_archives.sh)")
 
 
 def update_config(data_path):
@@ -158,15 +339,16 @@ def update_config(data_path):
         if "settings" not in config:
             config["settings"] = {}
         
-        config["settings"]["data_directory"] = data_path
+        # Use repo_root as the base data directory
+        config["settings"]["data_directory"] = repo_root
         
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
         
-        print(f"✓ Updated config to use data directory: {data_path}")
+        print(f"✓ Updated config to use data directory: {repo_root}")
 
 
-def create_sample_content(data_path):
+def create_sample_content(data_path, skip_prompt=False):
     """
     Create sample content in the archives
 
@@ -190,354 +372,3 @@ def create_sample_content(data_path):
         1. Clone the repository
         2. Install dependencies: `npm install`
         3. Start the development server: `npm run dev`
-        
-        ## Project Structure
-        
-        The frontend project follows a standard React structure with components organized by feature.
-        """).strip()
-        
-        manager.add_to_archives(
-            project="frontend",
-            section="setup",
-            content=frontend_content,
-            title="Sample Frontend Setup"
-        )
-        print("✓ Created sample frontend setup entry")
-        
-        # Create sample NativeWind documentation
-        nativewind_content = textwrap.dedent("""
-        # NativeWind Usage Guide
-        
-        NativeWind is a styling solution for React Native that brings Tailwind CSS to React Native.
-        
-        ## Installation
-        
-        1. Install NativeWind:
-        ```bash
-        npm install nativewind
-        npm install --dev tailwindcss@3.3.2
-        ```
-        
-        2. Initialize Tailwind CSS:
-        ```bash
-        npx tailwindcss init
-        ```
-        
-        3. Configure `tailwind.config.js`:
-        ```js
-        module.exports = {
-          content: ["./App.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
-          theme: {
-            extend: {},
-          },
-          plugins: [],
-        }
-        ```
-        
-        4. Configure your `babel.config.js` to include NativeWind:
-        ```js
-        module.exports = {
-          presets: ['babel-preset-expo'],
-          plugins: ["nativewind/babel"],
-        }
-        ```
-        
-        ## Usage
-        
-        Apply Tailwind classes using the `className` prop:
-        
-        ```jsx
-        import { View, Text } from 'react-native';
-        
-        export function MyComponent() {
-          return (
-            <View className="flex-1 items-center justify-center bg-white">
-              <Text className="text-blue-600 font-bold text-xl">Hello from NativeWind</Text>
-            </View>
-          );
-        }
-        ```
-        
-        ## Troubleshooting
-        
-        ### Common Issues
-        
-        1. Styles not being applied:
-           - Make sure you've properly configured your babel.config.js
-           - Clear Metro bundler cache: `npx react-native start --reset-cache`
-        
-        2. TypeScript errors:
-           - Add the types in your `app.d.ts` file:
-           ```ts
-           /// <reference types="nativewind/types" />
-           ```
-        
-        ### Performance Considerations
-        
-        - Use `className` for dynamic styles that change based on state
-        - For completely static styles, consider using StyleSheet for better performance
-        """).strip()
-        
-        manager.add_to_archives(
-            project="frontend",
-            section="styling",
-            content=nativewind_content,
-            title="NativeWind Usage Guide"
-        )
-        print("✓ Created sample NativeWind documentation")
-        
-        # Create sample backend API entry
-        backend_content = textwrap.dedent("""
-        # Sample API Documentation
-        
-        This is a sample entry for the backend API documentation.
-        
-        ## Authentication API
-        
-        ### POST /api/auth/login
-        
-        Authenticates a user and returns a JWT token.
-        
-        **Request:**
-        ```json
-        {
-          "email": "user@example.com",
-          "password": "password"
-        }
-        ```
-        
-        **Response:**
-        ```json
-        {
-          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-          "user": {
-            "id": "123",
-            "email": "user@example.com",
-            "name": "John Doe"
-          }
-        }
-        ```
-        """).strip()
-        
-        manager.add_to_archives(
-            project="backend",
-            section="apis",
-            content=backend_content,
-            title="Sample API Documentation"
-        )
-        print("✓ Created sample backend API entry")
-    
-    return True
-
-
-def link_to_project(project_path):
-    """
-    Link the archives to an existing project directory
-
-    Args:
-        project_path: Path to the project directory
-    """
-    print_header(f"Linking Archives to Project: {project_path}")
-    
-    # Create a .cursorrules file in the project directory
-    cursorrules_path = os.path.join(project_path, ".cursorrules")
-    
-    # Generate cursorrules file
-    manager = get_archives_manager()
-    output_path = manager.generate_combined_cursorrules(cursorrules_path)
-    
-    print(f"✓ Generated .cursorrules file at {output_path}")
-
-
-def display_next_steps(data_path):
-    """Display next steps instructions"""
-    print_header("Next Steps")
-    
-    print(textwrap.dedent(f"""
-    Here are the next steps to complete your AI Archives setup:
-    
-    1. Add content to your archives:
-       ```
-       python scripts/archives_cli.py add --project=frontend --section=setup --title="Project Setup" --content="..."
-       ```
-       
-    2. Search your archives:
-       ```
-       python scripts/archives_cli.py quick-search "your search query"
-       ```
-       
-    3. Update custom rules:
-       ```
-       python scripts/archives_cli.py rule add --name=my_rule --content="..."
-       ```
-       
-    4. Regenerate .cursorrules file (after changing custom rules):
-       ```
-       python scripts/integrate_cursorrules.py
-       ```
-       
-    Your archives are stored in: {data_path}
-    
-    For more information, please see the README.md and INTEGRATION_GUIDE.md files.
-    """))
-
-
-def install_archives_system(install_path, data_path=None, link_path=None):
-    """
-    Install the AI Archives system by cloning the repository
-
-    Args:
-        install_path: Path where to install the system
-        data_path: Path for the data directory (defaults to install_path/data)
-        link_path: Path to link the archives to (optional)
-    """
-    print_header("Installing AI Archives System")
-    
-    install_path = os.path.abspath(install_path)
-    os.makedirs(install_path, exist_ok=True)
-    
-    # Check if we're already in the repo
-    current_repo = repo_root
-    target_repo = os.path.join(install_path, "ai.archives")
-    
-    # If we're installing to a new location, clone the repo
-    if current_repo != target_repo:
-        if os.path.exists(target_repo):
-            print(f"Repository already exists at {target_repo}")
-            if not prompt_yes_no(f"Would you like to use the existing repository?", default="yes"):
-                print("Installation aborted.")
-                return False
-        else:
-            # Clone the repository
-            try:
-                print(f"Cloning AI Archives repository to {target_repo}...")
-                subprocess.check_call(
-                    ["git", "clone", "https://github.com/tylerqr/ai.archives.git", target_repo],
-                    cwd=install_path
-                )
-                print(f"✓ Cloned repository to {target_repo}")
-            except subprocess.SubprocessError as e:
-                print(f"Error cloning repository: {e}")
-                return False
-        
-        # Set up the data directory
-        if data_path is None:
-            data_path = os.path.join(target_repo, "data")
-        
-        # Run setup script in the cloned repository
-        subprocess.check_call(
-            [sys.executable, "scripts/setup.py", "--data-path", data_path],
-            cwd=target_repo
-        )
-        
-        # Link to project if specified
-        if link_path:
-            subprocess.check_call(
-                [sys.executable, "scripts/setup.py", "--link", link_path],
-                cwd=target_repo
-            )
-    else:
-        # We're already in the repo, just set up the data directory
-        setup_data_directory(data_path)
-        
-        # Link to project if specified
-        if link_path:
-            link_to_project(link_path)
-    
-    return True
-
-
-def get_project_root_suggestion():
-    """
-    Suggest a location for installing the AI Archives system,
-    avoiding nested git repositories.
-    """
-    # Try to find the current git repo root
-    try:
-        git_root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], 
-            stderr=subprocess.DEVNULL
-        ).decode().strip()
-        
-        # Suggest a sibling directory to the current git repo
-        parent_dir = os.path.dirname(git_root)
-        suggestion = os.path.join(parent_dir, "ai.archives")
-        
-        return suggestion, git_root
-    except (subprocess.SubprocessError, FileNotFoundError):
-        # If not in a git repo, suggest the current directory
-        current_dir = os.path.abspath(os.getcwd())
-        suggestion = os.path.join(current_dir, "ai.archives")
-        
-        return suggestion, None
-
-
-def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(description="AI Archives Setup Script")
-    
-    # Main operation modes
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--install", "-i", action="store_true", help="Install the AI Archives system")
-    group.add_argument("--setup-data", "-d", action="store_true", help="Set up the data directory")
-    group.add_argument("--link", "-l", metavar="PROJECT_PATH", help="Link archives to an existing project")
-    
-    # Options
-    parser.add_argument("--install-path", metavar="PATH", help="Path where to install the system")
-    parser.add_argument("--data-path", metavar="PATH", help="Path for the data directory")
-    parser.add_argument("--no-examples", action="store_true", help="Don't create example archives")
-    
-    args = parser.parse_args()
-    
-    # Check prerequisites
-    if not check_prerequisites():
-        return 1
-    
-    # Default mode is to set up the data directory if none specified
-    if not args.install and not args.setup_data and not args.link:
-        args.setup_data = True
-    
-    # If installing, determine the install path
-    if args.install:
-        if not args.install_path:
-            suggestion, git_root = get_project_root_suggestion()
-            
-            if git_root:
-                print(f"\nAvoid installing inside your existing Git repository: {git_root}")
-                print(f"Suggested installation location: {suggestion}")
-            
-            install_path = input(f"\nWhere would you like to install AI Archives? [{suggestion}]: ")
-            if not install_path:
-                install_path = suggestion
-        else:
-            install_path = args.install_path
-        
-        # Install the system
-        install_archives_system(
-            install_path=install_path,
-            data_path=args.data_path,
-            link_path=args.link
-        )
-    
-    # Set up the data directory
-    elif args.setup_data:
-        setup_data_directory(
-            data_path=args.data_path,
-            create_examples=not args.no_examples
-        )
-    
-    # Link to an existing project
-    elif args.link:
-        link_to_project(args.link)
-    
-    print("\nAI Archives setup completed successfully!")
-    
-    # Display next steps
-    data_path = args.data_path or os.path.join(repo_root, "data")
-    display_next_steps(data_path)
-    
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main()) 
