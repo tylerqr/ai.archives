@@ -12,16 +12,14 @@ The AI Archives system has a simple structure:
 
 ```
 ai.archives/
-├── archives/           # Archive content
-│   ├── projects/       # Project-specific archives
-│   └── archives/       # Archive data storage
+├── archives/           # Archive content organized by project and section
+├── templates/          # Templates for various files
 ├── scripts/            # Utility scripts
 ├── archives_api.py     # External API
 ├── custom-rules.md     # Default custom rules
 ├── server.py           # REST API server
 ├── archives_client.py  # REST API client library
 ├── ai_archives.py      # Simplified CLI wrapper
-├── archive_scratchpad.sh # Helper script for archiving scratchpad content
 └── README.md
 ```
 
@@ -31,76 +29,70 @@ The `archives/` directory is used for storing your knowledge. This organization 
 
 ### Prerequisites
 
-- Python 3.9 or higher
 - Git
-
-#### macOS Users
-
-If you're on macOS, we recommend using Homebrew for a smoother installation:
-
-```bash
-# Install Homebrew if you haven't already
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install Python 3.9 or higher
-brew install python@3.9
-```
+- Python 3.9 or higher
 
 ### Installation Steps
 
-1. Clone the repository to a location outside your projects:
+1. **Clone the repository** to a location outside your projects:
+
 ```bash
 git clone https://github.com/tylerqr/ai.archives.git ~/ai-systems/ai.archives
 cd ~/ai-systems/ai.archives
 ```
 
-2. Run the installation script:
-```bash
-./install.sh
-```
-
-The script will:
-- Set up a Python environment (using your system Python or creating a virtual environment if needed)
-- Install all required dependencies
-- Set up your archives directory
-- Create an activation script
-
-3. Activate the environment (if using a virtual environment):
-```bash
-source activate_archives.sh
-```
-
-## Usage
-
-If using a virtual environment, activate it before using AI Archives:
+2. **Install required dependencies**:
 
 ```bash
-cd ~/ai-systems/ai.archives  # or wherever you installed it
-source activate_archives.sh
+# Using pip
+pip install -r requirements.txt
+
+# Using uv (faster)
+uv pip install -r requirements.txt
 ```
 
-Then you can use the archives:
+3. **Create necessary directories**:
 
 ```bash
-# Add content to the archives
-python scripts/archives_cli.py add --project=frontend --section=errors --title="JWT Authentication Error" --content="Detailed description of the issue..."
-
-# Search the archives
-python scripts/archives_cli.py quick-search "authentication error"
-
-# List available archives
-python scripts/archives_cli.py list
+mkdir -p archives/frontend archives/backend archives/shared
+mkdir -p templates
 ```
 
-### REST API Server
-
-Start the server:
+4. **Create the empty scratchpad template**:
 
 ```bash
-python ai_archives.py server
-```
+cat > templates/empty_scratchpad.md << 'EOF'
+# Multi-Agent Scratchpad
 
-The server runs on http://localhost:5000.
+## Background and Motivation
+
+(Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)
+
+## Key Challenges and Analysis
+
+(Planner: Records of technical barriers, resource constraints, potential risks)
+
+## Verifiable Success Criteria
+
+(Planner: List measurable or verifiable goals to be achieved)
+
+## High-level Task Breakdown
+
+(Planner: List subtasks by phase, or break down into modules)
+
+## Current Status / Progress Tracking
+
+(Executor: Update completion status after each subtask. If needed, use bullet points or tables to show Done/In progress/Blocked status)
+
+## Next Steps and Action Items
+
+(Planner: Specific arrangements for the Executor)
+
+## Executor's Feedback or Assistance Requests
+
+(Executor: Write here when encountering blockers, questions, or need for more information during execution)
+EOF
+```
 
 ## Integrating with Your Projects
 
@@ -109,23 +101,23 @@ The AI Archives system is designed to be minimally invasive to your coding proje
 1. A symbolic link to the AI Archives system
 2. A .cursorrules file in your project
 
-### Simple Integration Steps
+### Integration Steps
 
-1. Create a symbolic link to the ai.archives repository from your project:
+1. **Create a symbolic link** to the ai.archives repository from your project:
    ```bash
    # From your project directory
    ln -s /path/to/ai.archives ai.archives
    ```
 
-2. Generate a .cursorrules file for your project:
+2. **Generate a .cursorrules file** for your project:
    ```bash
    # From your project directory
-   /path/to/ai.archives/run_archives.sh generate
+   ./ai.archives/run_archives.sh generate
    ```
 
 That's it! The AI Archives system will now be available to AI agents working in your project, without installing any dependencies or creating any virtual environments in your project directory.
 
-### Using Archives from Your Project
+## Using Archives from Your Project
 
 Once integrated, you can use the archives directly from your project:
 
@@ -135,95 +127,150 @@ Once integrated, you can use the archives directly from your project:
 
 # Add to archives
 ./ai.archives/run_archives.sh add frontend errors "Error Title" "Error message"
-
-# Archive entire scratchpad content and reset it
-./ai.archives/archive_scratchpad.sh frontend errors "Comprehensive Error Documentation"
 ```
 
 The `run_archives.sh` script handles all the environment setup automatically, so you don't need to worry about activating virtual environments or installing dependencies in your project.
 
-### Archiving Scratchpad Content
+### Project Organization
 
-The AI Archives system includes a helper script for archiving the entire content of the scratchpad.md file and resetting it to its default empty state:
+The archives are organized by project and section:
 
+- **frontend**: UI/client-side content
+- **backend**: Server-side content
+- **shared**: Cross-cutting concerns
+
+Within each project, you can organize content into sections like:
+- **setup**: Installation and configuration
+- **errors**: Common errors and solutions
+- **fixes**: Bug fixes and workarounds
+- **architecture**: System design and architecture
+
+Example usage:
 ```bash
-# Usage
-./ai.archives/archive_scratchpad.sh <project> <section> "Title"
+# Add frontend setup information
+./ai.archives/run_archives.sh add frontend setup "React Setup" "Setup instructions..."
 
-# Example
-./ai.archives/archive_scratchpad.sh shared fixes "NativeWind Removal - Complete Migration Guide"
+# Add backend error information
+./ai.archives/run_archives.sh add backend errors "Database Connection Error" "Error details..."
+
+# Add shared architecture information
+./ai.archives/run_archives.sh add shared architecture "System Architecture" "Architecture details..."
 ```
 
-This script:
-1. Reads the entire content of the scratchpad.md file
-2. Archives it with the specified project, section, and title
-3. Resets the scratchpad.md file to its default empty state for the next task
+## Archiving Scratchpad Content
 
-This ensures that all valuable information from the scratchpad is preserved in the archives while keeping the scratchpad clean for new tasks.
+The AI Archives system provides two methods for archiving scratchpad content:
 
-## Detailed Setup Options
-
-The AI Archives system provides several options via the wrapper script:
+### 1. Server-based approach (for smaller content)
 
 ```bash
-./run_archives.sh --help
+# Using the run_archives.sh script
+./ai.archives/run_archives.sh add <project> <section> "Title" "$(cat ./scratchpad.md)"
+
+# Reset scratchpad after archiving
+cat ./ai.archives/templates/empty_scratchpad.md > ./scratchpad.md
 ```
 
-Key commands:
+### 2. Direct file approach (for larger content)
 
-- `server`: Start the REST API server
-- `search`: Search archives
-- `add`: Add content to archives
-- `rule-add`: Add/update custom rules
-- `rules`: List custom rules
-- `generate`: Generate combined cursorrules file
-- `projects`: List available projects
-- `sections`: List sections for a project
-
-## Documentation
-
-For detailed instructions on using the AI Archives system, please see the [Integration Guide](INTEGRATION_GUIDE.md). This guide covers:
-
-- Setting up the archives in your projects
-- Custom rules management
-- Advanced configuration options
-- REST API for AI agents
-- Troubleshooting common issues
-
-## Command-Line Interface
-
-The AI Archives system includes a wrapper script for easy interaction:
+For large content that might exceed server request limits:
 
 ```bash
-./ai.archives/run_archives.sh --help
+# Generate timestamp for the filename
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+PROJECT="shared"  # Change as appropriate: frontend, backend, shared
+SECTION="fixes"   # Change as appropriate: setup, errors, fixes, etc.
+FILENAME="${PROJECT}_${SECTION}_${TIMESTAMP}.md"
+
+# Create directories if they don't exist
+mkdir -p ./ai.archives/archives/$PROJECT/$SECTION
+
+# Write the scratchpad content directly to the archives
+cat ./scratchpad.md > ./ai.archives/archives/$PROJECT/$SECTION/$FILENAME
+
+# Reset scratchpad after archiving
+cat ./ai.archives/templates/empty_scratchpad.md > ./scratchpad.md
+
+echo "Content archived to: ./ai.archives/archives/$PROJECT/$SECTION/$FILENAME"
 ```
 
-Available commands:
+This direct file approach bypasses the server completely, making it reliable for archiving large scratchpad content.
 
-- `search`: Search archives
-- `add`: Add content to archives
-- `rules`: List custom rules
-- `rule-add`: Add/update custom rules
-- `generate`: Generate combined cursorrules file
-- `projects`: List available projects
-- `sections`: List sections for a project
+## Searching Archives
 
-## REST API
-
-The system includes a REST API for simplified access:
+The AI Archives system provides a powerful search capability:
 
 ```bash
-# Start the REST API server
+# Search for information across all projects
+./ai.archives/run_archives.sh search "your search query"
+```
+
+### Intelligent Tokenized Search
+
+The search system uses an intelligent tokenized search algorithm that:
+
+- Breaks your query into individual words and finds documents containing those words
+- Ranks results by the number of token matches, with the most relevant results first
+- Shows a "Match Quality" score indicating how many token matches were found
+- Prioritizes exact phrase matches
+
+For best results:
+- Use specific keywords related to what you're looking for
+- Include technical terms that are likely to appear in the content
+- Try different variations if you don't find what you need initially
+
+## Available Commands
+
+The AI Archives system provides several commands via the wrapper script:
+
+```bash
+# Search archives
+./ai.archives/run_archives.sh search "your search query"
+
+# Add to archives
+./ai.archives/run_archives.sh add <project> <section> "Title" "Content"
+
+# Generate .cursorrules file
+./ai.archives/run_archives.sh generate [output_path]
+
+# List all projects
+./ai.archives/run_archives.sh projects
+
+# List sections in a project
+./ai.archives/run_archives.sh sections <project>
+
+# Start the server (if you encounter connection issues)
 ./ai.archives/run_archives.sh server
 ```
 
-Key endpoints:
-- `GET /search?query=<query>`: Search archives
-- `GET /quick-search?query=<query>&format=text`: AI-optimized search
-- `POST /add`: Add content to archives
-- `GET /rules`: List custom rules
-- `POST /rules`: Add/update a rule
-- `POST /generate-cursorrules`: Generate cursorrules file
+## Troubleshooting
+
+### Server Connection Issues
+
+If you encounter server connection issues:
+
+```bash
+# Start the server
+./ai.archives/run_archives.sh server
+```
+
+### Large Content Errors
+
+If you encounter a 500 Internal Server Error when adding large content:
+- Use the direct file approach described above
+- Check server logs for specific error details
+- Consider breaking your content into smaller chunks if needed
+
+### Updating the AI Archives System
+
+To update to the latest version of the AI Archives system:
+
+```bash
+cd /path/to/ai.archives
+git pull
+```
+
+Your archives data will remain untouched, as it's stored separately from the code repository.
 
 ## How it Works
 

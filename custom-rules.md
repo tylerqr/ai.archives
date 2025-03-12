@@ -2,10 +2,11 @@
 
 ## Core Rules
 
-- **ALWAYS USE WRAPPER SCRIPT**: Use `./ai.archives/run_archives.sh` for all archive operations
+- **SEARCH USING WRAPPER SCRIPT**: Use `./ai.archives/run_archives.sh search` for searching archives
+- **WRITE DIRECTLY TO ARCHIVES**: Always write archive content directly to the archives directory via the symlink
 - **NEVER EDIT .cursorrules DIRECTLY**: This file is auto-generated
 - **SEARCH BEFORE ADDING**: Always search archives before adding new content to avoid duplicates
-- **ARCHIVE ENTIRE SCRATCHPAD**: When archiving, always include the entire scratchpad content
+- **INTELLIGENTLY CATEGORIZE CONTENT**: Analyze content to determine the most appropriate project and section
 
 ## Quick Reference
 
@@ -13,74 +14,42 @@
 # Search archives (ALWAYS search first)
 ./ai.archives/run_archives.sh search "your search query"
 
-# Add to archives (only when explicitly requested)
-./ai.archives/run_archives.sh add <project> <section> "Title" "Content"
-
-# Projects: frontend, backend, shared
-# Sections: setup, errors, fixes, architecture, etc.
+# Add to archives (write directly to the archives directory)
+# Generate timestamp for the filename
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+# Analyze content to determine appropriate project and section
+PROJECT="..."  # Determine based on content: frontend, backend, or shared
+SECTION="..."  # Determine based on content: setup, errors, fixes, etc.
+FILENAME="${PROJECT}_${SECTION}_${TIMESTAMP}.md"
+mkdir -p ./ai.archives/archives/$PROJECT/$SECTION
+# Write content to the file
+echo "# Title" > ./ai.archives/archives/$PROJECT/$SECTION/$FILENAME
+echo "" >> ./ai.archives/archives/$PROJECT/$SECTION/$FILENAME
+echo "Content goes here" >> ./ai.archives/archives/$PROJECT/$SECTION/$FILENAME
 ```
 
 ## Content Guidelines
 
 - **SEARCH FIRST**: When archives are mentioned, search before taking other actions
 - **ADD WHEN REQUESTED**: Only add content when explicitly requested
-- **PROPER CATEGORIZATION**: 
-  - Use `frontend` for UI/client-side content
-  - Use `backend` for server-side content
-  - Use `shared` for cross-cutting concerns
-- **CLEAR SECTIONS**: Use descriptive section names (setup, errors, fixes, etc.)
+- **INTELLIGENT CATEGORIZATION**: 
+  - Analyze the content to determine the most appropriate project and section
+  - Use `frontend` for UI/client-side content (React, CSS, UI components, etc.)
+  - Use `backend` for server-side content (APIs, databases, server logic, etc.)
+  - Use `shared` for cross-cutting concerns (authentication, configuration, architecture, etc.)
+  - Create appropriate sections based on content type (setup, errors, fixes, architecture, etc.)
+  - If content spans multiple areas, choose the most dominant theme or use `shared`
+- **DESCRIPTIVE SECTIONS**: Create or use sections that clearly describe the content type:
+  - `setup`: Installation, configuration, environment setup
+  - `errors`: Error messages, debugging, troubleshooting
+  - `fixes`: Solutions, workarounds, bug fixes
+  - `architecture`: System design, patterns, structure
+  - `security`: Authentication, authorization, data protection
+  - `performance`: Optimization, scaling, efficiency
+  - `testing`: Testing strategies, frameworks, examples
+  - `deployment`: CI/CD, hosting, containerization
+  - Feel free to create new sections as appropriate for the content
 - **PRESERVE FORMATTING**: Maintain all markdown formatting, code blocks, and structure when archiving
-- **COMPLETE CONTENT**: When archiving from scratchpad, include the ENTIRE content of the scratchpad.md file
-- **RESET SCRATCHPAD**: After archiving, reset the scratchpad to its default empty state for the next task
-
-## Archiving Process
-
-1. When asked to "add to archives" or similar:
-   - First check if there's content in the scratchpad.md file
-   - If yes, use the ENTIRE content of scratchpad.md as the "Content" parameter
-   - Use a descriptive title that summarizes the content
-   - After successful archiving, reset the scratchpad.md to its default empty state
-   - If no scratchpad content exists, use relevant information from the conversation
-
-2. For archiving from scratchpad:
-```bash
-# Read scratchpad content and add to archives
-SCRATCHPAD_CONTENT=$(cat ./ai.archives/scratchpad.md)
-./ai.archives/run_archives.sh add <project> <section> "Title" "$SCRATCHPAD_CONTENT"
-
-# Reset scratchpad after archiving
-cat > ./ai.archives/scratchpad.md << 'EOF'
-# Multi-Agent Scratchpad
-
-## Background and Motivation
-
-(Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)
-
-## Key Challenges and Analysis
-
-(Planner: Records of technical barriers, resource constraints, potential risks)
-
-## Verifiable Success Criteria
-
-(Planner: List measurable or verifiable goals to be achieved)
-
-## High-level Task Breakdown
-
-(Planner: List subtasks by phase, or break down into modules)
-
-## Current Status / Progress Tracking
-
-(Executor: Update completion status after each subtask. If needed, use bullet points or tables to show Done/In progress/Blocked status)
-
-## Next Steps and Action Items
-
-(Planner: Specific arrangements for the Executor)
-
-## Executor's Feedback or Assistance Requests
-
-(Executor: Write here when encountering blockers, questions, or need for more information during execution)
-EOF
-```
 
 ## Updating Rules
 
@@ -91,7 +60,7 @@ EOF
 
 ## Server Issues
 
-If you get connection errors:
+If you get connection errors when searching:
 ```bash
 ./ai.archives/run_archives.sh server  # Start the server
 ```
